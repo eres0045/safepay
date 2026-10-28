@@ -5,12 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SafePay — Freelance Escrow on MST Blockchain</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
   fieldset { margin: 1rem 0; }
-  label { display: block; margin: 0.5rem 0 0.2rem; }
-  input { width: 100%; padding: 0.4rem; }
-  button { margin: 0.3rem 0.3rem 0.3rem 0; padding: 0.5rem 1rem; }
+  label { display: block; margin: 0.5rem 0 0.2rem; font-weight: 600; }
+  input { width: 100%; padding: 0.4rem; box-sizing: border-box; }
+  button { margin: 0.3rem 0.3rem 0.3rem 0; padding: 0.5rem 1rem; cursor: pointer; }
   pre { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; word-break: break-all; }
+  .hint { color: #444; }
+  .ok { color: #0a7a42; font-weight: 600; }
+  .warn { color: #a33d00; font-weight: 600; }
+  a { color: #0b5fff; }
 </style>
 <script type="importmap">
 { "imports": { "ethers": "https://cdn.jsdelivr.net/npm/ethers@6/+esm" } }
@@ -19,18 +23,24 @@
 <body>
 <h1>SafePay — Freelance Escrow on MST</h1>
 <p>Client locks payment on-chain. Funds release per milestone only after client approval. Unreleased funds refund after the deadline. Real MST Testnet contract — no simulations.</p>
+<p class="hint">Demo flow: 1. Connect BridgeKey &rarr; 2. Switch to MST Testnet &rarr; 3. Create escrow &rarr; 4. Fund it &rarr; 5. Approve a milestone &rarr; 6. Release it. Every step is a real on-chain transaction.</p>
+<p>
+  Contract: <a href="https://testnet.mstscan.com/address/0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5" target="_blank" rel="noopener">0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5</a>
+  &middot; <a href="https://faucet.mstblockchain.com" target="_blank" rel="noopener">Get free tMSTC from the MST faucet</a>
+  &middot; <a href="https://bridgekey.io" target="_blank" rel="noopener">Get BridgeKey wallet</a>
+</p>
 
 <fieldset>
   <legend>1. Wallet &amp; network</legend>
-  <button id="connect">Connect wallet (BridgeKey / injected)</button>
+  <button id="connect">Connect BridgeKey wallet</button>
   <button id="switch">Switch to MST Testnet</button>
-  <pre id="walletOut">Not connected.</pre>
+  <pre id="walletOut">Not connected. BridgeKey is the official non-custodial wallet for MST Blockchain — install it, then connect.</pre>
 </fieldset>
 
 <fieldset>
   <legend>2. Contract</legend>
-  <label>Contract address (paste from deployments.json after deploy)</label>
-  <input id="contractAddr" placeholder="0x..." />
+  <label>Contract address (MST Testnet)</label>
+  <input id="contractAddr" value="0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5" />
   <label>Escrow id</label>
   <input id="escrowId" value="0" />
   <button id="readEscrow">Read escrow</button>
@@ -58,6 +68,7 @@
 <script type="module">
 import { ethers } from 'ethers';
 
+const TESTNET_CHAIN_ID = 91562037n;
 const TESTNET = {
   chainId: '0x5752035', // 91562037
   chainName: 'MST Testnet',
@@ -78,12 +89,46 @@ function getContract() {
   if (!ethers.isAddress(addr)) throw new Error('Enter a valid contract address first.');
   return new ethers.Contract(addr, abi, signer);
 }
-
+async function refreshWallet() {
+  if (!signer) return;
+  const addr = await signer.getAddress();
+  const bal = await provider.getBalance(addr);
+  const net = await provider.getNetwork();
+  const chainNote = net.chainId === TESTNET_CHAIN_ID
+    ? 'On MST Testnet.'
+    : 'WARNING: not on MST Testnet — click "Switch to MST Testnet".';
+  log('walletOut', 'Connected: ' + addr + '\nBalance: ' + ethers.formatEther(bal) + ' tMSTC\n' + chainNote);
+}
+async function refreshRead() {
+  try {
+    await loadAbi();
+    const c = getContract();
+    const id = BigInt($('escrowId').value);
+    const e = await c.getEscrow(id);
+    const lines = [
+      'Client: ' + e[0],
+      'Freelancer: ' + e[1],
+      'Deadline: ' + new Date(Number(e[2]) * 1000).toISOString(),
+      'Total: ' + ethers.formatEther(e[3]) + ' tMSTC',
+      'Funded: ' + ethers.formatEther(e[4]) + ' tMSTC (funded: ' + e[7] + ')',
+      'Released: ' + ethers.formatEther(e[5]) + ' tMSTC',
+      'Refunded: ' + ethers.formatEther(e[6]) + ' tMSTC',
+      'Milestones: ' + Number(e[8]),
+    ];
+    for (let i = 0; i < Number(e[8]); i++) {
+      const m = await c.getMilestone(id, i);
+      lines.push('  Milestone ' + i + ': ' + ethers.formatEther(m[0]) + ' tMSTC | approved: ' + m[1] + ' | released: ' + m[2]);
+    }
+    log('readOut', lines.join('\n'));
+  } catch (e) { log('readOut', 'Error: ' + e.message); }
+}
 $('connect').onclick = async () => {
-  if (!window.ethereum) { log('walletOut', 'No injected wallet found. Install BridgeKey and retry.'); return; }
-  provider = new ethers.BrowserProvider(window.ethereum);
-  signer = await provider.getSigner();
-  log('walletOut', 'Connected: ' + await signer.getAddress());
+  try {
+    if (!window.ethereum) { log('walletOut', 'No injected wallet found. Install BridgeKey (bridgekey.io) and retry.'); return; }
+    provider = new ethers.BrowserProvider(window.ethereum);
+    signer = await provider.getSigner();
+    await refreshWallet();
+  } catch (e) { log('walletOut', 'Error: ' + e.message); }
 };
 $('switch').onclick = async () => {
   try {
@@ -93,30 +138,32 @@ $('switch').onclick = async () => {
       await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [TESTNET] });
     } else throw e;
   }
-  log('walletOut', 'Switched to MST Testnet.');
+  await refreshWallet();
 };
-$('readEscrow').onclick = async () => {
-  try {
-    await loadAbi();
-    const c = getContract();
-    const id = BigInt($('escrowId').value);
-    const e = await c.getEscrow(id);
-    log('readOut', JSON.stringify({
-      client: e[0], freelancer: e[1], deadline: new Date(Number(e[2]) * 1000).toISOString(),
-      total: ethers.formatEther(e[3]), funded: ethers.formatEther(e[4]),
-      released: ethers.formatEther(e[5]), refunded: ethers.formatEther(e[6]),
-      fundedFlag: e[7], milestones: Number(e[8]),
-    }, null, 2));
-  } catch (e) { log('readOut', 'Error: ' + e.message); }
-};
+$('readEscrow').onclick = refreshRead;
 async function send(fn, out) {
   try {
     await loadAbi();
     if (!signer) throw new Error('Connect wallet first.');
     const tx = await fn();
     log(out, 'Sent: ' + tx.hash + '\nWaiting for confirmation...');
-    await tx.wait();
-    log(out, 'Confirmed: ' + tx.hash + '\nhttps://testnet.mstscan.com/tx/' + tx.hash);
+    const receipt = await tx.wait();
+    let extra = '';
+    try {
+      const iface = new ethers.Interface(abi);
+      for (const l of receipt.logs) {
+        let parsed = null;
+        try { parsed = iface.parseLog(l); } catch (_) { /* not our event */ }
+        if (parsed && parsed.name === 'EscrowCreated') {
+          $('escrowId').value = parsed.args[0].toString();
+          extra = '\nNew escrow id: ' + parsed.args[0].toString() + ' (filled in above)';
+          break;
+        }
+      }
+    } catch (_) { /* event parsing is best-effort */ }
+    log(out, 'Confirmed: ' + tx.hash + '\nhttps://testnet.mstscan.com/tx/' + tx.hash + extra);
+    await refreshWallet();
+    await refreshRead();
   } catch (e) { log(out, 'Error: ' + (e.reason || e.message)); }
 }
 $('create').onclick = () => send(async () => {
