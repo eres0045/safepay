@@ -23,9 +23,9 @@
 <body>
 <h1>SafePay — Freelance Escrow on MST</h1>
 <p>Client locks payment on-chain. Funds release per milestone only after client approval. Unreleased funds refund after the deadline. Real MST Testnet contract — no simulations.</p>
-<p class="hint">Demo flow: 1. Connect BridgeKey &rarr; 2. Switch to MST Testnet &rarr; 3. Create escrow &rarr; 4. Fund it &rarr; 5. Approve a milestone &rarr; 6. Release it. Every step is a real on-chain transaction.</p>
+<p class="hint">Demo flow: 1. Connect BridgeKey &rarr; 2. Switch to MST Testnet &rarr; 3. Create escrow &rarr; 4. Fund it &rarr; 5. Freelancer delivers with proof &rarr; 6. Client approves &rarr; 7. Release it. Or, after the deadline: freelancer claims delivered work, client refunds only undelivered funds. Every step is a real on-chain transaction.</p>
 <p>
-  Contract: <a href="https://testnet.mstscan.com/address/0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5" target="_blank" rel="noopener">0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5</a>
+  Contract: <a href="https://testnet.mstscan.com/address/0x40854b8c2436504FFB30Ac89298Da24eC434a905" target="_blank" rel="noopener">0x40854b8c2436504FFB30Ac89298Da24eC434a905</a>
   &middot; <a href="https://faucet.mstblockchain.com" target="_blank" rel="noopener">Get free tMSTC from the MST faucet</a>
   &middot; <a href="https://bridgekey.io" target="_blank" rel="noopener">Get BridgeKey wallet</a>
 </p>
@@ -40,7 +40,7 @@
 <fieldset>
   <legend>2. Contract</legend>
   <label>Contract address (MST Testnet)</label>
-  <input id="contractAddr" value="0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5" />
+  <input id="contractAddr" value="0x40854b8c2436504FFB30Ac89298Da24eC434a905" />
   <label>Escrow id</label>
   <input id="escrowId" value="0" />
   <button id="readEscrow">Read escrow</button>
@@ -63,6 +63,23 @@
   <button id="release">Release milestone</button>
   <button id="refund">Refund (after deadline)</button>
   <pre id="txOut"></pre>
+</fieldset>
+
+<fieldset>
+  <legend>4. Freelancer actions</legend>
+  <label>Milestone index</label>
+  <input id="deliverIdx" value="0" />
+  <label>Proof link (delivered work)</label>
+  <input id="proof" placeholder="https://..." />
+  <button id="deliver">Submit delivery</button>
+  <button id="claim">Claim delivered (after deadline)</button>
+  <pre id="freeOut"></pre>
+</fieldset>
+
+<fieldset>
+  <legend>5. My escrows</legend>
+  <button id="loadMine">Load my escrows</button>
+  <pre id="mineOut"></pre>
 </fieldset>
 
 <script type="module">
@@ -117,7 +134,7 @@ async function refreshRead() {
     ];
     for (let i = 0; i < Number(e[8]); i++) {
       const m = await c.getMilestone(id, i);
-      lines.push('  Milestone ' + i + ': ' + ethers.formatEther(m[0]) + ' tMSTC | approved: ' + m[1] + ' | released: ' + m[2]);
+      lines.push('  Milestone ' + i + ': ' + ethers.formatEther(m[0]) + ' tMSTC | approved: ' + m[1] + ' | released: ' + m[2] + ' | delivered: ' + m[3] + (m[4] ? ' | proof: ' + m[4] : ''));
     }
     log('readOut', lines.join('\n'));
   } catch (e) { log('readOut', 'Error: ' + e.message); }
@@ -190,6 +207,31 @@ $('refund').onclick = () => send(async () => {
   const c = getContract();
   return c.refund(BigInt($('escrowId').value));
 }, 'txOut');
+$('deliver').onclick = () => send(async () => {
+  const c = getContract();
+  return c.submitDelivery(BigInt($('escrowId').value), BigInt($('deliverIdx').value), $('proof').value.trim());
+}, 'freeOut');
+$('claim').onclick = () => send(async () => {
+  const c = getContract();
+  return c.claimDelivered(BigInt($('escrowId').value), BigInt($('deliverIdx').value));
+}, 'freeOut');
+$('loadMine').onclick = async () => {
+  try {
+    await loadAbi();
+    if (!signer) throw new Error('Connect wallet first.');
+    const me = (await signer.getAddress()).toLowerCase();
+    const c = getContract();
+    const total = Number(await c.nextEscrowId());
+    const lines = ['Found ' + total + ' escrow(s) on this contract.'];
+    for (let id = 0; id < total; id++) {
+      const e = await c.getEscrow(id);
+      const role = e[0].toLowerCase() === me ? 'client' : e[1].toLowerCase() === me ? 'freelancer' : '-';
+      if (role === '-') continue;
+      lines.push('Escrow ' + id + ' (' + role + '): total ' + ethers.formatEther(e[3]) + ' | funded ' + ethers.formatEther(e[4]) + ' | released ' + ethers.formatEther(e[5]) + ' | refunded ' + ethers.formatEther(e[6]) + ' | milestones ' + Number(e[8]));
+    }
+    log('mineOut', lines.join('\n'));
+  } catch (e) { log('mineOut', 'Error: ' + e.message); }
+};
 </script>
 </body>
 </html>

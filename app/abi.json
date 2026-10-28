@@ -11,6 +11,11 @@
   },
   {
     "inputs": [],
+    "name": "DeadlinePassed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "EmptyMilestones",
     "type": "error"
   },
@@ -47,6 +52,11 @@
   },
   {
     "inputs": [],
+    "name": "MilestoneAlreadyDelivered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "MilestoneAlreadyReleased",
     "type": "error"
   },
@@ -57,7 +67,17 @@
   },
   {
     "inputs": [],
+    "name": "MilestoneNotDelivered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotClient",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotFreelancer",
     "type": "error"
   },
   {
@@ -208,6 +228,37 @@
       },
       {
         "indexed": false,
+        "internalType": "string",
+        "name": "proof",
+        "type": "string"
+      }
+    ],
+    "name": "MilestoneDelivered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "escrowId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "milestoneIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "freelancer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
@@ -230,6 +281,24 @@
       }
     ],
     "name": "approveMilestone",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "escrowId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "milestoneIndex",
+        "type": "uint256"
+      }
+    ],
+    "name": "claimDelivered",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -364,6 +433,16 @@
         "internalType": "bool",
         "name": "released",
         "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "delivered",
+        "type": "bool"
+      },
+      {
+        "internalType": "string",
+        "name": "proof",
+        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -409,6 +488,29 @@
       }
     ],
     "name": "releaseMilestone",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "escrowId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "milestoneIndex",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "proof",
+        "type": "string"
+      }
+    ],
+    "name": "submitDelivery",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
