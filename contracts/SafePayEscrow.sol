@@ -6,14 +6,20 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 /// @title SafePayEscrow — freelance escrow on MST Blockchain
 /// @notice A client locks native MSTC/tMSTC for a freelancer across milestones.
 ///         Funds release per milestone only after the client approves it.
-///         Unreleased funds return to the client after the deadline.
-///         Tight MVP scope: native currency only, one client + one freelancer
-///         per escrow, milestones fixed at creation.
+///         The freelancer records delivery on-chain with proof. If work was
+///         delivered before the deadline and the client never approves it,
+///         the freelancer can claim it after the deadline — a ghosting client
+///         cannot claw back delivered work via refund.
+///         Unreleased, unapproved, undelivered funds return to the client
+///         after the deadline. Tight MVP scope: native currency only, one
+///         client + one freelancer per escrow, milestones fixed at creation.
 contract SafePayEscrow is ReentrancyGuard {
     struct Milestone {
         uint256 amount;
         bool approved;
         bool released;
+        bool delivered;
+        string proof;
     }
 
     struct Escrow {
@@ -40,6 +46,12 @@ contract SafePayEscrow is ReentrancyGuard {
     );
     event EscrowFunded(uint256 indexed escrowId, uint256 amount);
     event MilestoneApproved(uint256 indexed escrowId, uint256 indexed milestoneIndex);
+    event MilestoneDelivered(
+        uint256 indexed escrowId,
+        uint256 indexed milestoneIndex,
+        address indexed freelancer,
+        string proof
+    );
     event MilestoneReleased(
         uint256 indexed escrowId,
         uint256 indexed milestoneIndex,
@@ -52,6 +64,7 @@ contract SafePayEscrow is ReentrancyGuard {
     error EmptyMilestones();
     error ZeroMilestoneAmount();
     error NotClient();
+    error NotFreelancer();
     error AlreadyFunded();
     error NotFunded();
     error IncorrectFundingAmount(uint256 expected, uint256 received);
@@ -59,7 +72,10 @@ contract SafePayEscrow is ReentrancyGuard {
     error MilestoneAlreadyApproved();
     error MilestoneNotApproved();
     error MilestoneAlreadyReleased();
+    error MilestoneAlreadyDelivered();
+    error MilestoneNotDelivered();
     error DeadlineNotReached();
+    error DeadlinePassed();
     error NothingToRefund();
     error TransferFailed();
 
@@ -68,10 +84,16 @@ contract SafePayEscrow is ReentrancyGuard {
         _;
     }
 
+    modifier onlyFreelancer(uint256 escrowId) {
+        if (msg.sender != escrows[escrowId].freelancer) revert NotFreelancer();
+        _;
+    }
+
     /// @notice Create an escrow. Funding is a separate step (fund()).
     /// @param freelancer The freelancer who will receive released funds.
     /// @param amounts Per-milestone amounts in wei. Must be non-empty, all > 0.
-    /// @param deadline Unix timestamp after which unreleased funds become refundable.
+    /// @param deadline Unix timestamp after which unreleased funds become refundable
+    ///        (and delivered-but-unapproved milestones become claimable).
     /// @return escrowId The new escrow id.
     function createEscrow(
         address freelancer,
@@ -94,7 +116,9 @@ contract SafePayEscrow is ReentrancyGuard {
         e.deadline = deadline;
         e.totalAmount = total;
         for (uint256 i = 0; i < amounts.length; i++) {
-            e.milestones.push(Milestone({amount: amounts[i], approved: false, released: false}));
+            e.milestones.push(
+                Milestone({amount: amounts[i], approved: false, released: false, delivered: false, proof: ""})
+            );
         }
 
         emit EscrowCreated(escrowId, msg.sender, freelancer, total, deadline);
@@ -124,6 +148,26 @@ contract SafePayEscrow is ReentrancyGuard {
         emit MilestoneApproved(escrowId, milestoneIndex);
     }
 
+    /// @notice Freelancer records delivery of one milestone, with a proof link.
+    ///         Delivery must happen before the deadline to count for a
+    ///         deadline claim. Delivery alone does not move funds.
+    function submitDelivery(
+        uint256 escrowId,
+        uint256 milestoneIndex,
+        string calldata proof
+    ) external onlyFreelancer(escrowId) {
+        Escrow storage e = escrows[escrowId];
+        if (!e.funded) revert NotFunded();
+        if (milestoneIndex >= e.milestones.length) revert InvalidMilestone();
+        if (block.timestamp >= e.deadline) revert DeadlinePassed();
+        Milestone storage m = e.milestones[milestoneIndex];
+        if (m.released) revert MilestoneAlreadyReleased();
+        if (m.delivered) revert MilestoneAlreadyDelivered();
+        m.delivered = true;
+        m.proof = proof;
+        emit MilestoneDelivered(escrowId, milestoneIndex, msg.sender, proof);
+    }
+
     /// @notice Release an approved milestone's funds to the freelancer. Anyone may call.
     function releaseMilestone(uint256 escrowId, uint256 milestoneIndex) external nonReentrant {
         Escrow storage e = escrows[escrowId];
@@ -139,13 +183,43 @@ contract SafePayEscrow is ReentrancyGuard {
         emit MilestoneReleased(escrowId, milestoneIndex, e.freelancer, m.amount);
     }
 
-    /// @notice After the deadline, return all still-unreleased funds to the client.
-    /// @dev Only unapproved/unreleased milestones are refundable; released funds stay paid.
+    /// @notice After the deadline, the freelancer claims a milestone that was
+    ///         delivered before the deadline but never approved. This is the
+    ///         anti-ghosting path: delivered work cannot be refunded away.
+    function claimDelivered(uint256 escrowId, uint256 milestoneIndex)
+        external
+        onlyFreelancer(escrowId)
+        nonReentrant
+    {
+        Escrow storage e = escrows[escrowId];
+        if (!e.funded) revert NotFunded();
+        if (milestoneIndex >= e.milestones.length) revert InvalidMilestone();
+        if (block.timestamp < e.deadline) revert DeadlineNotReached();
+        Milestone storage m = e.milestones[milestoneIndex];
+        if (!m.delivered) revert MilestoneNotDelivered();
+        if (m.released) revert MilestoneAlreadyReleased();
+        m.released = true;
+        e.releasedAmount += m.amount;
+        (bool ok, ) = payable(e.freelancer).call{value: m.amount}("");
+        if (!ok) revert TransferFailed();
+        emit MilestoneReleased(escrowId, milestoneIndex, e.freelancer, m.amount);
+    }
+
+    /// @notice After the deadline, return still-unreleased funds to the client.
+    /// @dev Approved-but-unreleased and delivered-but-unreleased milestones are
+    ///      LOCKED: approved funds are owed to the freelancer, delivered funds
+    ///      are claimable by the freelancer. Only unapproved, undelivered
+    ///      funds are refundable. Released funds stay paid.
     function refund(uint256 escrowId) external onlyClient(escrowId) nonReentrant {
         Escrow storage e = escrows[escrowId];
         if (!e.funded) revert NotFunded();
         if (block.timestamp < e.deadline) revert DeadlineNotReached();
-        uint256 refundable = e.fundedAmount - e.releasedAmount - e.refundedAmount;
+        uint256 locked = 0;
+        for (uint256 i = 0; i < e.milestones.length; i++) {
+            Milestone storage m = e.milestones[i];
+            if (!m.released && (m.approved || m.delivered)) locked += m.amount;
+        }
+        uint256 refundable = e.fundedAmount - e.releasedAmount - e.refundedAmount - locked;
         if (refundable == 0) revert NothingToRefund();
         e.refundedAmount += refundable;
         (bool ok, ) = payable(e.client).call{value: refundable}("");
@@ -187,11 +261,11 @@ contract SafePayEscrow is ReentrancyGuard {
     function getMilestone(uint256 escrowId, uint256 milestoneIndex)
         external
         view
-        returns (uint256 amount, bool approved, bool released)
+        returns (uint256 amount, bool approved, bool released, bool delivered, string memory proof)
     {
         Escrow storage e = escrows[escrowId];
         if (milestoneIndex >= e.milestones.length) revert InvalidMilestone();
         Milestone storage m = e.milestones[milestoneIndex];
-        return (m.amount, m.approved, m.released);
+        return (m.amount, m.approved, m.released, m.delivered, m.proof);
     }
 }

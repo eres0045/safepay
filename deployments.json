@@ -10,9 +10,9 @@
   "mstTestnet": {
     "network": "mstTestnet",
     "chainId": 91562037,
-    "contract": "0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5",
+    "contract": "0x40854b8c2436504FFB30Ac89298Da24eC434a905",
     "deployer": "0x79e5882a9cBF197EB14fA7E4cD3c704E2c12cb07",
-    "deployTx": "0x7843d0788f8781eda9cf665ad361382c0b42cca29d484ed6a6d3b14313e6d5a6",
-    "deployedAt": "2026-10-28T06:15:17.265Z"
+    "deployTx": "0x6e52a3661e5a044893ce16153c6005458f9b5ea15f953d3fb78e6ead8a185fde",
+    "deployedAt": "2026-10-28T08:08:39.188Z"
   }
 }

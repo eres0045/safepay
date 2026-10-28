@@ -2,7 +2,7 @@
 
 > **Draft only — not submitted.** Testnet values in the submission table
 > are real, verified on-chain values (28 Oct 2026). Remaining **TBD**s
-> (demo link, repo, video, Mainnet) must be filled in only with real,
+> (video, Mainnet) must be filled in only with real,
 > verified values when they exist. Nothing in this document
 > is published, submitted, or deployed.
 
@@ -10,8 +10,11 @@
 
 SafePay is a freelance escrow built on MST Blockchain. A client locks payment
 on-chain for a freelancer across fixed milestones. Funds release per milestone
-only after the client approves it. Unreleased funds return to the client after
-the deadline. The blockchain itself holds the money — no middleman, no
+only after the client approves it. The freelancer records delivery on-chain
+with proof; delivered-but-unapproved work can be claimed by the freelancer
+after the deadline, so a ghosting client cannot refund it away. Only
+unapproved, undelivered funds return to the client after the deadline.
+The blockchain itself holds the money — no middleman, no
 simulated transactions.
 
 Built for MST Blockchain Buildathon 2.0, Round 2 (MVP Build Sprint).
@@ -165,17 +168,30 @@ proof. Testnet proof comes only from the deployment and transactions below.
 | --- | --- |
 | MST Testnet contract address (v2) | 0x40854b8c2436504FFB30Ac89298Da24eC434a905 — https://testnet.mstscan.com/address/0x40854b8c2436504FFB30Ac89298Da24eC434a905 |
 | MST Testnet contract address (v1, superseded) | 0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5 |
-| Deploy tx | 0x7843d0788f8781eda9cf665ad361382c0b42cca29d484ed6a6d3b14313e6d5a6 (block 6634177) |
-| createEscrow(0) tx | 0xcb04b4620a87c271a81cdecd35c41d3669e0a948aa8fcfa3e7110d474bf02c97 (block 6634184) |
-| fund(0) tx — 1.0 tMSTC | 0x8cc61e2a097946d60ebff2d3bb78d0353dfc3b9dfe6ed56bea16882ff54796f6 (block 6634185) |
-| approveMilestone(0,0) tx | 0xd989e5a12c6b273b20bc3dd26f0d06c67baac4df765591d7b5ca62388f799614 (block 6634186) |
-| releaseMilestone(0,0) tx — 0.6 tMSTC paid | 0xed56b2e2a5ca61db25d9e6ebca393d4e20578fb89b436dfd309272a4e2b08fd3 (block 6634187) |
-| approveMilestone(0,1) tx | 0xb4b8265d3600f7dbc9ef1ac8dcfa1256f853ad51cd82296b68d8336d60b23aeb (block 6634188) |
-| releaseMilestone(0,1) tx — 0.4 tMSTC paid | 0x02265040e5958643db3ab81070701297b2f209f22fafef8b1601eb8344840af7 (block 6634189) |
-| createEscrow(1) tx — refund path | 0x52513072e3a27a06f9fe7c916098df10e4978087b1c37276bfa91b5e8322fdfe (block 6634190) |
-| fund(1) tx — 0.5 tMSTC | 0x9a04c4d9f47bc1babdc93d2ee33799a161fd0fdde6a7cfaedf38752503abacac (block 6634191) |
-| refund(1) tx — 0.5 tMSTC returned | 0xd64105d11df29d1d0de8c68e550ffe72e30920803412d7a388ed445f471cdb9d (block 6634192) |
-| Receipt verification | All 10 receipts status 0x1 via official Testnet RPC; contract bytecode verified on-chain. Explorer page fetch timed out and was not retried — verify visually at https://testnet.mstscan.com/tx/<hash>. |
+| Deploy tx (v2) | 0x6e52a3661e5a044893ce16153c6005458f9b5ea15f953d3fb78e6ead8a185fde (block 6636444) |
+| fundFreelancerWallet — 0.3 tMSTC gas | 0xba5e49024bb5a10df6e32a66133fea0cffcc584d7c1d52d55f8337476cb145a0 (block 6636453) |
+| createEscrow(0) tx | 0xf858ba38563de2bb63557444afb0fbad89673e0af621fba969e474e5f950cc3c (block 6636454) |
+| fund(0) tx — 1.0 tMSTC | 0x9fa2ecc82171bb83f24c762faed7da34dc908d07759eb11fa468f42415bc82ef (block 6636455) |
+| approveMilestone(0,0) tx | 0x6c66730ff8a957e7deb2d7bbf2037aab767ee140289cec5f31cbd9c0d62ebddb (block 6636456) |
+| releaseMilestone(0,0) tx — 0.6 tMSTC paid | 0x0ad76f8200adebc9706dbfe5e1acefbc1af6bf75a15f41aa2831ada0ce903a91 (block 6636457) |
+| approveMilestone(0,1) tx | 0x0092e15702275a5f3739695f7d95e89cf7d791820f49b01269b01fbe8e6317b5 (block 6636458) |
+| releaseMilestone(0,1) tx — 0.4 tMSTC paid | 0x5e95af131e29c98b2585e476d96f9740a220b8e94caa57a67f23f8de5db9aef4 (block 6636459) |
+| createEscrow(1) tx — refund path | 0x063ada4f597a54965720657f850a8aabc8db4da80483006e05ee9b243fe3a65a (block 6636460) |
+| fund(1) tx — 0.5 tMSTC | 0x233281aec91bd9506944af7089cadb7b1948ef263b5dbb741ade340d73754b1c (block 6636461) |
+| refund(1) tx — 0.5 tMSTC returned | 0xc136c1b9fdfc75eae0f4da53ac3d715c8f073c663e09f9bf273190305ed94fa2 (block 6636462) |
+| createEscrow(2) tx — delivery path | 0x20d7b3786e2b735ee0bb5370d457147019d6cf0ffe7327883187e93d61828322 (block 6636463) |
+| fund(2) tx — 0.5 tMSTC | 0x634636255f5a43de502152500be599bdd31e38bf0d8b2fc5207c7b64bc795e61 (block 6636464) |
+| submitDelivery(2,0) tx | 0x26fbc6190634d8a187c78bf891857ee40a21ef1a0bd119a77f9fc55c0fc47352 (block 6636465) |
+| createEscrow(3) tx — refund-lock path | 0xc5693a6e957d67e7e220a336eee2d6d29d5e2bc1b07dcf735bd3b4e838d073f1 (block 6636466) |
+| fund(3) tx — 1.6 tMSTC | 0xb5783109d7d65ff422a0adf9006e032003237f5df6137d99cca808a7b9f942ca (block 6636467) |
+| submitDelivery(3,1) tx | 0xa2d2d116d5276b2b07bf5b5884251e2b5d7ca0b3bc1cc297bd9968f2acd91a5a (block 6636468) |
+| approveMilestone(3,0) tx | 0x7c8155647ea58295dde6279a8b5cef32cd5145a5501915c3beb4a4ef65f7110d (block 6636469) |
+| releaseMilestone(3,0) tx — 0.6 tMSTC paid | 0x40d585b97fb26a9ebd4fa54e3f4492496d19eb55871bbb4a28c43c3538c2a2fb (block 6636470) |
+| claimDelivered(2,0) tx — 0.5 tMSTC claimed, no approval | 0x79687f07a2c5d330aa1a63d4baddb8c9971aa78911895a226688b7d1b22ce7a7 (block 6636517) |
+| refund(3) tx — 0.6 tMSTC returned (delivered 0.4 LOCKED, not swept) | 0x043afd53052c8475c176090d8499d56f1981b6537623ed8d4f98f33cd5d23962 (block 6636518) |
+| claimDelivered(3,1) tx — 0.4 tMSTC claimed | 0x1b6de3266d7b0cd1beb9e32fb4b811d5e990cce515f87598e606e5206eb0796f (block 6636519) |
+| Receipt verification (v2) | All 22 receipts (deploy + 21 flows) status 0x1 via official Testnet RPC; bytecode verified (18888 chars); final states re-read on-chain (escrow 0: 1.0/1.0; escrow 1: refunded 0.5/0.5; escrow 2: 0.5 claimed; escrow 3: released 1.0, refunded 0.6, total 1.6). Explorer page fetch timed out once and was not retried — verify visually at https://testnet.mstscan.com/tx/<hash>. |
+| v1 flows (superseded contract 0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5) | Deploy 0x7843d0788f8781eda9cf665ad361382c0b42cca29d484ed6a6d3b14313e6d5a6 (block 6634177) + 9 flow txs, blocks 6634184–6634192, all receipts status 0x1 (full hashes in git history). |
 | Live demo link | https://eres0045.github.io/safepay/app/ |
 | Public GitHub repository (full source) | https://github.com/eres0045/safepay |
 | Demo video (2–3 min) | TBD |

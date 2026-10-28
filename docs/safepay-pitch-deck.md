@@ -11,10 +11,10 @@ author: "Ronit Shrimankar"
 
 **MST Blockchain Buildathon 2.0 — Round 2 MVP**
 
-Team: Ronit Shrimankar (solo)
+Team: FORTEC — Ronit Shrimankar (solo builder)
 Project: freelance escrow — clients lock payment on-chain, funds release per approved milestone
 
-> DRAFT — not submitted. Testnet contract address and transaction hashes below are real, verified on-chain values (28 Oct 2026); remaining TBDs (demo link, repo, video, Mainnet) are filled only with real values when they exist.
+> DRAFT — not submitted. Testnet contract address and transaction hashes below are real, verified on-chain values (28 Oct 2026); remaining TBDs (video, Mainnet) are filled only with real values when they exist.
 
 ---
 
@@ -35,9 +35,10 @@ The result: delayed payments, disputes with no neutral arbiter, and freelancers 
 A freelance escrow where **the blockchain itself holds the money**:
 
 1. The client creates an escrow with fixed milestones and locks the full amount on-chain
-2. The freelancer delivers milestone by milestone
+2. The freelancer delivers milestone by milestone, recorded on-chain with proof
 3. The client approves each milestone — only then do funds move
-4. Unreleased funds return to the client after the deadline
+4. If delivered work is never approved, the freelancer claims it after the deadline — a ghosting client cannot refund it away
+5. Unreleased, unapproved, undelivered funds return to the client after the deadline
 
 No middleman holds the money. No one can move funds without the rules being followed.
 
@@ -47,9 +48,11 @@ No middleman holds the money. No one can move funds without the rules being foll
 
 1. **Create** — client sets freelancer, milestone amounts, deadline
 2. **Fund** — client locks exactly the milestone total into the contract
-3. **Approve** — client approves a delivered milestone (approval alone moves no funds)
-4. **Release** — the approved milestone's payment goes to the freelancer
-5. **Refund** — after the deadline, unreleased funds return to the client
+3. **Deliver** — freelancer records delivery on-chain with proof
+4. **Approve** — client approves a delivered milestone (approval alone moves no funds)
+5. **Release** — the approved milestone's payment goes to the freelancer
+6. **Claim** — after the deadline, delivered-but-unapproved work is claimable by the freelancer
+7. **Refund** — after the deadline, only unapproved, undelivered funds return to the client
 
 Each step is verifiable on the MST explorer — no simulated transactions.
 
@@ -80,9 +83,9 @@ Each step is verifiable on the MST explorer — no simulated transactions.
 SafePay is not a web app with a token bolted on — **custody of the money IS the contract**:
 
 - Funds sit in the escrow contract, not in a database or a company account
-- Every state change (create, fund, approve, release, refund) is a transaction with a verifiable hash
-- The contract enforces the rules: exact funding amount, client-only funding/approval/refund, no double release, no refund before the deadline
-- Anyone can read escrow state on-chain (`getEscrow`, `getMilestone`) and audit events (`EscrowCreated`, `EscrowFunded`, `MilestoneApproved`, `MilestoneReleased`, `EscrowRefunded`)
+- Every state change (create, fund, approve, deliver, release, claim, refund) is a transaction with a verifiable hash
+- The contract enforces the rules: exact funding amount, client-only funding/approval/refund, no double release, no refund before the deadline, approved/delivered funds locked against refunds
+- Anyone can read escrow state on-chain (`getEscrow`, `getMilestone`) and audit events (`EscrowCreated`, `EscrowFunded`, `MilestoneApproved`, `MilestoneDelivered`, `MilestoneReleased`, `EscrowRefunded`)
 - ReentrancyGuard protects all fund-moving functions
 
 ---
@@ -95,7 +98,9 @@ SafePay is not a web app with a token bolted on — **custody of the money IS th
 | `fund(escrowId)` — payable | client only | Locks exactly the milestone total; rejects wrong amounts and double funding |
 | `approveMilestone(escrowId, index)` | client only | Approves a milestone; moves no funds by itself |
 | `releaseMilestone(escrowId, index)` | anyone | Pays an approved milestone to the freelancer; rejects unapproved or already-released milestones |
-| `refund(escrowId)` | client only, after deadline | Returns all still-unreleased funds to the client |
+| `refund(escrowId)` | client only, after deadline | Returns only unapproved, undelivered funds; approved/delivered funds are locked |
+| `submitDelivery(escrowId, index, proof)` | freelancer only, before deadline | Records delivery on-chain with a proof link; moves no funds by itself |
+| `claimDelivered(escrowId, index)` | freelancer only, after deadline | Pays delivered-but-unapproved work; the anti-ghosting path |
 | `getEscrow(id)` / `getMilestone(id, index)` | anyone | Read escrow and milestone state |
 
 ---
@@ -108,7 +113,7 @@ The organizer's Round 2 framing is a business/startup-convertible build. SafePay
 - **Remote and cross-border freelance work** — payment enforcement that doesn't depend on local courts or payment rails
 - **Milestone-based project payments** — agencies, contractors, and gig work beyond freelancing
 
-Future work (not built yet): platform fees, multi-freelancer escrows, mediation for disputed milestones. The MVP proves the core — on-chain custody and release — first.
+Future work (not built yet): platform fees, multi-freelancer escrows, third-party arbitration. Delivery proof and deadline-claim are already built. The MVP proves the core — on-chain custody and release — first.
 
 ---
 
@@ -117,23 +122,18 @@ Future work (not built yet): platform fees, multi-freelancer escrows, mediation 
 **Proven locally (Phase 1, recorded in the project README):**
 
 - Contract compiles cleanly (Solidity 0.8.24)
-- 6/6 Hardhat tests passing: create (+ bad-input reverts), fund rules, approve + release (exact payment, no double-spend), refund rules, full end-to-end flow
+- 11/11 Hardhat tests passing: v1 flows plus v2 delivery rules, deadline-claim, and refund-lock (partial + full)
 - Local-node end-to-end run passed (local network only — **not** testnet proof)
 
 **Testnet deployment — DONE and verified on-chain (28 Oct 2026, MST Testnet, chain ID 91562037):**
 
 - Testnet contract address: **0x40854b8c2436504FFB30Ac89298Da24eC434a905** — https://testnet.mstscan.com/address/0x40854b8c2436504FFB30Ac89298Da24eC434a905
-- Deploy tx: **0x7843d0788f8781eda9cf665ad361382c0b42cca29d484ed6a6d3b14313e6d5a6** (block 6634177)
-- createEscrow(0): **0xcb04b4620a87c271a81cdecd35c41d3669e0a948aa8fcfa3e7110d474bf02c97** (block 6634184)
-- fund(0) — 1.0 tMSTC: **0x8cc61e2a097946d60ebff2d3bb78d0353dfc3b9dfe6ed56bea16882ff54796f6** (block 6634185)
-- approveMilestone(0,0): **0xd989e5a12c6b273b20bc3dd26f0d06c67baac4df765591d7b5ca62388f799614** (block 6634186)
-- releaseMilestone(0,0) — 0.6 tMSTC paid: **0xed56b2e2a5ca61db25d9e6ebca393d4e20578fb89b436dfd309272a4e2b08fd3** (block 6634187)
-- approveMilestone(0,1): **0xb4b8265d3600f7dbc9ef1ac8dcfa1256f853ad51cd82296b68d8336d60b23aeb** (block 6634188)
-- releaseMilestone(0,1) — 0.4 tMSTC paid: **0x02265040e5958643db3ab81070701297b2f209f22fafef8b1601eb8344840af7** (block 6634189)
-- createEscrow(1) — refund path: **0x52513072e3a27a06f9fe7c916098df10e4978087b1c37276bfa91b5e8322fdfe** (block 6634190)
-- fund(1) — 0.5 tMSTC: **0x9a04c4d9f47bc1babdc93d2ee33799a161fd0fdde6a7cfaedf38752503abacac** (block 6634191)
-- refund(1) — 0.5 tMSTC returned: **0xd64105d11df29d1d0de8c68e550ffe72e30920803412d7a388ed445f471cdb9d** (block 6634192)
-- All 10 receipts confirmed successful (status 0x1) via the official Testnet RPC; contract bytecode verified on-chain. Explorer page fetch timed out and was not retried — verify visually at the links above.
+- Deploy tx (v2): **0x6e52a3661e5a044893ce16153c6005458f9b5ea15f953d3fb78e6ead8a185fde** (block 6636444)
+- Escrow 0 — approve/release flow, 1.0 tMSTC released: create **0xf858ba38563de2bb63557444afb0fbad89673e0af621fba969e474e5f950cc3c**, fund **0x9fa2ecc82171bb83f24c762faed7da34dc908d07759eb11fa468f42415bc82ef**, approve **0x6c66730ff8a957e7deb2d7bbf2037aab767ee140289cec5f31cbd9c0d62ebddb**, release **0x0ad76f8200adebc9706dbfe5e1acefbc1af6bf75a15f41aa2831ada0ce903a91**, approve **0x0092e15702275a5f3739695f7d95e89cf7d791820f49b01269b01fbe8e6317b5**, release **0x5e95af131e29c98b2585e476d96f9740a220b8e94caa57a67f23f8de5db9aef4**
+- Escrow 1 — refund path, 0.5 tMSTC returned: create **0x063ada4f597a54965720657f850a8aabc8db4da80483006e05ee9b243fe3a65a**, fund **0x233281aec91bd9506944af7089cadb7b1948ef263b5dbb741ade340d73754b1c**, refund **0xc136c1b9fdfc75eae0f4da53ac3d715c8f073c663e09f9bf273190305ed94fa2**
+- Escrow 2 — delivery + deadline-claim, 0.5 tMSTC claimed with no approval: create **0x20d7b3786e2b735ee0bb5370d457147019d6cf0ffe7327883187e93d61828322**, fund **0x634636255f5a43de502152500be599bdd31e38bf0d8b2fc5207c7b64bc795e61**, deliver **0x26fbc6190634d8a187c78bf891857ee40a21ef1a0bd119a77f9fc55c0fc47352**, claim **0x79687f07a2c5d330aa1a63d4baddb8c9971aa78911895a226688b7d1b22ce7a7**
+- Escrow 3 — refund-lock, 0.6 released + 0.6 refunded + 0.4 claimed (delivered funds NOT swept): create **0xc5693a6e957d67e7e220a336eee2d6d29d5e2bc1b07dcf735bd3b4e838d073f1**, fund **0xb5783109d7d65ff422a0adf9006e032003237f5df6137d99cca808a7b9f942ca**, deliver **0xa2d2d116d5276b2b07bf5b5884251e2b5d7ca0b3bc1cc297bd9968f2acd91a5a**, approve **0x7c8155647ea58295dde6279a8b5cef32cd5145a5501915c3beb4a4ef65f7110d**, release **0x40d585b97fb26a9ebd4fa54e3f4492496d19eb55871bbb4a28c43c3538c2a2fb**, refund **0x043afd53052c8475c176090d8499d56f1981b6537623ed8d4f98f33cd5d23962**, claim **0x1b6de3266d7b0cd1beb9e32fb4b811d5e990cce515f87598e606e5206eb0796f**
+- All 22 receipts confirmed successful (status 0x1) via the official Testnet RPC; contract bytecode verified on-chain; final states re-read on-chain. Explorer page fetch timed out and was not retried — verify visually at the links above.
 - Live demo link: **https://eres0045.github.io/safepay/app/**
 - Public GitHub repository: **https://github.com/eres0045/safepay**
 - Demo video (2–3 min): **TBD**
