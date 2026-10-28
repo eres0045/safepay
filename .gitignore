@@ -1,0 +1,6 @@
+hidden_files/
+.env
+.env.local
+node_modules/
+artifacts/
+cache/

@@ -1,0 +1,18 @@
+{
+  "localhost": {
+    "network": "localhost",
+    "chainId": 31337,
+    "contract": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "deployTx": "0xdfc53cbb1312e089cc43c285762c22dbf115d1301327d4facc4326d5d004ff0c",
+    "deployedAt": "2026-10-28T06:05:47.376Z"
+  },
+  "mstTestnet": {
+    "network": "mstTestnet",
+    "chainId": 91562037,
+    "contract": "0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5",
+    "deployer": "0x79e5882a9cBF197EB14fA7E4cD3c704E2c12cb07",
+    "deployTx": "0x7843d0788f8781eda9cf665ad361382c0b42cca29d484ed6a6d3b14313e6d5a6",
+    "deployedAt": "2026-10-28T06:15:17.265Z"
+  }
+}
