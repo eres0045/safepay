@@ -163,7 +163,8 @@ proof. Testnet proof comes only from the deployment and transactions below.
 
 | Item | Value |
 | --- | --- |
-| MST Testnet contract address | 0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5 — https://testnet.mstscan.com/address/0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5 |
+| MST Testnet contract address (v2) | 0x40854b8c2436504FFB30Ac89298Da24eC434a905 — https://testnet.mstscan.com/address/0x40854b8c2436504FFB30Ac89298Da24eC434a905 |
+| MST Testnet contract address (v1, superseded) | 0xd330F3F7cD35FA2512592dCC0aD75381aF3798F5 |
 | Deploy tx | 0x7843d0788f8781eda9cf665ad361382c0b42cca29d484ed6a6d3b14313e6d5a6 (block 6634177) |
 | createEscrow(0) tx | 0xcb04b4620a87c271a81cdecd35c41d3669e0a948aa8fcfa3e7110d474bf02c97 (block 6634184) |
 | fund(0) tx — 1.0 tMSTC | 0x8cc61e2a097946d60ebff2d3bb78d0353dfc3b9dfe6ed56bea16882ff54796f6 (block 6634185) |
@@ -175,8 +176,8 @@ proof. Testnet proof comes only from the deployment and transactions below.
 | fund(1) tx — 0.5 tMSTC | 0x9a04c4d9f47bc1babdc93d2ee33799a161fd0fdde6a7cfaedf38752503abacac (block 6634191) |
 | refund(1) tx — 0.5 tMSTC returned | 0xd64105d11df29d1d0de8c68e550ffe72e30920803412d7a388ed445f471cdb9d (block 6634192) |
 | Receipt verification | All 10 receipts status 0x1 via official Testnet RPC; contract bytecode verified on-chain. Explorer page fetch timed out and was not retried — verify visually at https://testnet.mstscan.com/tx/<hash>. |
-| Live demo link | TBD |
-| Public GitHub repository (full source) | TBD |
+| Live demo link | https://eres0045.github.io/safepay/app/ |
+| Public GitHub repository (full source) | https://github.com/eres0045/safepay |
 | Demo video (2–3 min) | TBD |
 | Project PPT | Draft in `docs/safepay-pitch-deck.md` (this package) |
 | Mainnet deployment details | TBD (organizer-provided funds) |
