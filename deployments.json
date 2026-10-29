@@ -14,5 +14,15 @@
     "deployer": "0x79e5882a9cBF197EB14fA7E4cD3c704E2c12cb07",
     "deployTx": "0x6e52a3661e5a044893ce16153c6005458f9b5ea15f953d3fb78e6ead8a185fde",
     "deployedAt": "2026-10-28T08:08:39.188Z"
+  },
+  "mstTestnetRelayer": {
+    "network": "mstTestnet",
+    "chainId": 91562037,
+    "forwarder": "0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9",
+    "forwarderDeployTx": "0x6f4ce8a2add178c40a18989c1d8466ef2eb8a6c9e4254c6b2906e62db81409c8",
+    "contract": "0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d",
+    "deployTx": "0x5de277b989169f3156d06e43a16088581d376ff5e2d9c49bbc443195941a0dde",
+    "deployer": "0x79e5882a9cBF197EB14fA7E4cD3c704E2c12cb07",
+    "deployedAt": "2026-10-29T11:29:59.610Z"
   }
 }

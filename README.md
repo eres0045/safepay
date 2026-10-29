@@ -107,8 +107,45 @@ Events: `EscrowCreated`, `EscrowFunded`, `MilestoneApproved`,
   plus 9 flow txs — all receipts status 0x1, blocks 6634177–6634192,
   verified via the official Testnet RPC. See `docs/project-documentation.md`.
 
-## App (live demo: https://eres0045.github.io/safepay/app/)
+## Relayer (gasless, Phase 1 — LIVE on MST Testnet, 29 Oct 2026)
 
+Users sign their escrow action (EIP-712); a relayer service submits it and
+pays the gas, so users never manage gas manually. Built on OpenZeppelin
+ERC-2771: `contracts/SafePayForwarder.sol` (thin wrapper over
+`ERC2771Forwarder`, domain name "SafePayForwarder", version "1") +
+`contracts/SafePayEscrow.sol` now inherits `ERC2771Context`, so
+`_msgSender()` returns the ORIGINAL signer — every onlyClient /
+onlyFreelancer check still sees the real user, never the relayer. Direct
+calls are unchanged (off the forwarder path, `_msgSender() == msg.sender`),
+and all 11 original tests still pass.
+
+- **Testnet (verified on-chain via the official RPC):**
+  forwarder `0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9`
+  (deploy tx `0x6f4ce8a2add178c40a18989c1d8466ef2eb8a6c9e4254c6b2906e62db81409c8`),
+  relayer-enabled escrow `0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d`
+  (deploy tx `0x5de277b989169f3156d06e43a16088581d376ff5e2d9c49bbc443195941a0dde`).
+  The v2 contract (`0x40854b…a905`) is untouched and still live.
+- **Tests:** `npx hardhat test` — **18/18 passing** (11 original + 7 new
+  relayer e2e: approve, delivery, create, deadline-claim, release, refund,
+  and a security test covering forged signatures, replay, and direct
+  spoofing). Testnet e2e (`scripts/relayer-e2e-testnet.js`) and HTTP
+  service smoke test (`scripts/relayer-http-smoke.js`) both pass with
+  real Testnet txs — see `docs/relayer.md` for hashes and balances.
+- **Service:** `relayer/relayer-server.js` — `POST /relay` validates
+  (escrow-only target, zero value, gas cap, future deadline,
+  `forwarder.verify()`), then submits and pays gas. It runs on demand
+  (not hosted 24/7); run it with `RELAYER_PRIVATE_KEY` set (fund the key
+  with a small amount of tMSTC only). Funding is never relayed:
+  value-bearing requests are refused, because moving a user's own escrow
+  funds through a third party would defeat the escrow.
+- **HONEST STATUS:** Phase 1 (standalone relayer) is complete and proven
+  on Testnet. Phase 2 (gasless path inside the live demo app) is ON HOLD
+  pending user review — the demo app still shows the direct v2 flow only.
+  The Unstop submission (29 Oct 2026) describes the pre-relayer package;
+  whether it and the Google Form should mention the relayer is a
+  submission-time decision, not something this change makes by itself.
+
+## App (live demo: https://eres0045.github.io/safepay/app/)
 - `app/index.html` — static page (ethers v6 via CDN): connect BridgeKey /
   injected wallet, switch/add MST Testnet (chain 91562037), pre-filled
   Testnet contract address, create/fund/approve/release/refund, freelancer
