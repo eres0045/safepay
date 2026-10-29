@@ -53,9 +53,25 @@ if (!KEY) {
   process.exit(1);
 }
 
-const provider = new ethers.JsonRpcProvider(RPC);
+const provider = new ethers.JsonRpcProvider(RPC, undefined, { cacheTimeout: -1 });
+// NOTE: ethers v6 providers deduplicate identical low-level requests made
+// within 250ms (cacheTimeout). That is fatal for a relayer: a pending-count
+// query made <250ms after the previous relay returns the STALE count and
+// the next transaction reuses a nonce (this exact failure was reproduced
+// in load testing: the 3rd rapid relay failed with a stale nonce while
+// the node log showed no fresh count query). cacheTimeout: -1 disables
+// the cache for this provider, so every nonce query hits the network.
 const relayer = new ethers.Wallet(KEY, provider);
 const forwarder = forwarderContract(FORWARDER, relayer);
+
+// Serialize relay submissions through a promise queue. The relayer wallet
+// must never send two transactions with the same nonce, even under rapid
+// sequential requests: each submission queries the pending count fresh
+// and passes it explicitly, instead of relying on implicit population.
+// (A load test once produced a stale-nonce send on the 3rd rapid relay
+// against a local automining node; the queue + explicit nonce removes
+// that class of failure entirely.)
+let submitQueue = Promise.resolve();
 
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
@@ -107,8 +123,15 @@ const server = http.createServer(async (req, res) => {
       if (!ok) {
         return json(res, 400, { error: 'forwarder verification failed (bad signature, stale nonce, or expired request)' });
       }
-      const tx = await forwarder.execute(toTuple(request));
-      const receipt = await tx.wait();
+      const run = submitQueue.then(async () => {
+        const nonce = await provider.getTransactionCount(relayer.address, 'pending');
+        const tx = await forwarder.execute(toTuple(request), { nonce });
+        const receipt = await tx.wait();
+        return { tx, receipt };
+      });
+      // Keep the queue alive after a failure so later requests still run.
+      submitQueue = run.catch(() => {});
+      const { tx, receipt } = await run;
       console.log(`relayed from=${request.from} tx=${tx.hash} status=${receipt.status}`);
       return json(res, 200, {
         txHash: tx.hash,

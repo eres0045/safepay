@@ -4,8 +4,9 @@ Organizers announced (29 Oct 2026) that relayer integration is a BONUS
 point during evaluation: users should not have to manage gas manually.
 This document is the Phase 1 record: forwarder + meta-transaction-aware
 escrow + relayer service + end-to-end tests, deployed and verified on MST
-Testnet. Phase 2 (gasless path inside the live demo app) is ON HOLD
-pending user review — nothing in `app/` was changed for the relayer.
+Testnet. Phase 2 (gasless path inside the live demo app) is DONE as of
+29 Oct 2026 (see below) — the demo app now offers both paths, direct
+still the default.
 
 ## Design
 
@@ -121,18 +122,89 @@ Frontend signing note (for Phase 2): the signed request's BigInt fields
 `JSON.stringify` — plain `JSON.stringify` throws on BigInt. The server
 converts them back with `BigInt()`.
 
+## Phase 2 — gasless path in the demo app (DONE 29 Oct 2026)
+
+- `app/index.html`: a Direct / Gasless mode switch (section 2). Direct
+  is the default and is behavior-identical to before (v2 contract,
+  `app/abi.json`). Gasless switches the contract address to the relayer
+  escrow and the ABI to `app/abi-relayer.json` (generated from the
+  compiled artifact via `node scripts/sync-relayer-abi.js`; the only
+  differences from the v2 ABI are `trustedForwarder` /
+  `isTrustedForwarder`), shows a relayer URL field (default
+  `http://localhost:3001`, editable) + forwarder field + "Check relayer
+  status" (`GET /health`), and adds a "(gasless)" button next to every
+  relayable action: create, approve, release, deliver, claim, refund.
+  Fund has no gasless button, by design. The page signs an EIP-712
+  ForwardRequest with the connected wallet (`signer.signTypedData`,
+  domain "SafePayForwarder" / "1", types identical to `relayer/signing.js`)
+  and POSTs the JSON request to the relayer, then shows the relayed tx
+  hash + explorer link and fills in the new escrow id on create.
+- `test/FrontendSigning.test.js` (6 tests): the page's EIP-712 type,
+  domain, forwarder/escrow addresses, and v2-default are asserted equal
+  to `relayer/signing.js` + `relayer/addresses.json` (drift guards);
+  gasless buttons exist for every relayable action and none for fund;
+  and the frontend's exact JSON payload shape (Numbers, not BigInts)
+  verifies + executes on Hardhat with the signer recorded as actor.
+- `scripts/relayer-frontend-shape-test.js`: full HTTP-path test through
+  the real server on a local node (`npx hardhat node`, then
+  `npx hardhat run scripts/relayer-frontend-shape-test.js --network
+  localhost`). Relayed create → direct fund → relayed deliver → relayed
+  approve → relayed release, plus value-bearing and wrong-target
+  refusals; final assertion is freelancer gains exactly 0.6 having paid
+  zero gas (relative assertion, so it passes on fresh or reused nodes).
+  Result: ALL PASSED, twice in a row on a reused node.
+- App verification (29 Oct 2026): extracted page JS passes
+  `node --check`; every `$('...')` id exists in the HTML; both ABIs are
+  valid JSON; the served page returns 200 for `index.html` and
+  `abi-relayer.json`; the default contract is still the v2 address.
+  NOT verified: a live browser-wallet click-through of the gasless
+  buttons (no wallet automation exists here) — first live click should
+  be a judge's or Ronit's own, with the service running.
+
+### Relayer hardening: the 250ms request-cache stale nonce (found + fixed)
+
+Load testing caught a real failure: the 3rd rapid relay failed with a
+stale nonce ("expected 2 but got 1"), while the node log showed NO fresh
+count query for it. Root cause, proven with debug logging: ethers v6
+`JsonRpcProvider` deduplicates identical low-level requests made within
+250ms (`cacheTimeout`, in `AbstractProvider.#perform`). A pending-count
+query made <250ms after the previous relay returned the CACHED count
+(1 instead of 2), so the next transaction reused a nonce. It flipped
+between runs purely on timing, which is why one full run passed and the
+next failed at the same step. Fix: the server creates its provider with
+`cacheTimeout: -1` (documented provider option; -1 disables the cache),
+so every nonce query hits the network. Submissions are additionally
+serialized through a promise queue, each using an explicitly queried
+pending nonce. The demo page needs no equivalent change: human clicks are
+seconds apart, far outside the 250ms window.
+
+### Judge runbook: try the gasless path yourself
+
+```bash
+# 1. Start the relayer (fund its key with a small amount of tMSTC only)
+RELAYER_PRIVATE_KEY=<relayer key> node relayer/relayer-server.js
+# -> listening on :3001; check GET http://localhost:3001/health
+
+# 2. Open the demo (serve app/ or use the Pages deployment once pushed),
+#    connect BridgeKey, switch to MST Testnet, pick "Gasless via relayer"
+#    in section 2, confirm the relayer status, then:
+#    Create (gasless) -> Fund (direct, exact total) -> Deliver (gasless)
+#    -> Approve (gasless) -> Release (gasless).
+#    Each gasless step shows a relayed tx hash; you pay no gas for them.
+```
+
+The service runs on demand, not hosted 24/7 — for a judged demo, start it
+first (or point the page's relayer URL at a running instance).
+
 ## What remains before the submission can claim the relayer
 
-1. User review of this Phase 1 proof (this document + the txs above).
-2. Phase 2 (only on user go): gasless buttons in `app/index.html`
-   wired to a relayer URL, defaulting to the relayer-enabled escrow
-   address, with the direct v2 path kept intact.
-3. Submission-time decision (parent + user): whether the Unstop entry
-   (submitted 29 Oct 2026, pre-relayer) gets a Change Submission update
-   and whether the Google Form mentions the relayer. The relayer stack
-   is live and proven either way; the claim must name the new escrow
-   address (`0xd75e…c3d6d`), not the v2 address, for the gasless path.
-4. Mainnet: untouched. A mainnet relayer stack needs organizer MSTC
+1. Submission-time decision (parent + user): update the Unstop entry
+   (submitted 29 Oct 2026, pre-relayer) via Change Submission before the
+   30 Oct 2026, 2:00 PM IST deadline, and mention the relayer in the
+   Google Form. Any claim must name the relayer escrow address
+   (`0xd75e…c3d6d`) for the gasless path (not the v2 address) and must
+   say the service runs on demand, not 24/7.
+2. Mainnet: untouched. A mainnet relayer stack needs organizer MSTC
    first, same as the mainnet escrow itself.
 
 ## Secrets

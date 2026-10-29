@@ -23,9 +23,11 @@
 <body>
 <h1>SafePay — Freelance Escrow on MST</h1>
 <p>Client locks payment on-chain. Funds release per milestone only after client approval. Unreleased funds refund after the deadline. Real MST Testnet contract — no simulations.</p>
-<p class="hint">Demo flow: 1. Connect BridgeKey &rarr; 2. Switch to MST Testnet &rarr; 3. Create escrow &rarr; 4. Fund it &rarr; 5. Freelancer delivers with proof &rarr; 6. Client approves &rarr; 7. Release it. Or, after the deadline: freelancer claims delivered work, client refunds only undelivered funds. Every step is a real on-chain transaction.</p>
+<p class="hint">Demo flow: 1. Connect BridgeKey &rarr; 2. Switch to MST Testnet &rarr; 3. Create escrow &rarr; 4. Fund it &rarr; 5. Freelancer delivers with proof &rarr; 6. Client approves &rarr; 7. Release it. Or, after the deadline: freelancer claims delivered work, client refunds only undelivered funds. Every step is a real on-chain transaction. Gasless mode (section 2) signs the same actions as meta-transactions and lets a relayer submit them and pay the gas — funding stays direct-only by design.</p>
 <p>
-  Contract: <a href="https://testnet.mstscan.com/address/0x40854b8c2436504FFB30Ac89298Da24eC434a905" target="_blank" rel="noopener">0x40854b8c2436504FFB30Ac89298Da24eC434a905</a>
+  Direct contract: <a href="https://testnet.mstscan.com/address/0x40854b8c2436504FFB30Ac89298Da24eC434a905" target="_blank" rel="noopener">0x40854b8c2436504FFB30Ac89298Da24eC434a905</a>
+  &middot; Relayer escrow: <a href="https://testnet.mstscan.com/address/0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d" target="_blank" rel="noopener">0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d</a>
+  &middot; Forwarder: <a href="https://testnet.mstscan.com/address/0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9" target="_blank" rel="noopener">0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9</a>
   &middot; <a href="https://faucet.mstblockchain.com" target="_blank" rel="noopener">Get free tMSTC from the MST faucet</a>
   &middot; <a href="https://bridgekey.io" target="_blank" rel="noopener">Get BridgeKey wallet</a>
 </p>
@@ -39,8 +41,24 @@
 
 <fieldset>
   <legend>2. Contract</legend>
+  <label>Mode</label>
+  <select id="mode">
+    <option value="direct" selected>Direct — v2 contract (you pay gas)</option>
+    <option value="gasless">Gasless via relayer — relayer escrow (relayer pays gas)</option>
+  </select>
+  <p class="hint">Switching mode resets the contract address below to that mode's default. Direct is the default; the v2 contract is unchanged.</p>
   <label>Contract address (MST Testnet)</label>
   <input id="contractAddr" value="0x40854b8c2436504FFB30Ac89298Da24eC434a905" />
+  <div id="relayerFields" style="display:none">
+    <label>Relayer service URL</label>
+    <input id="relayerUrl" value="http://localhost:3001" />
+    <p class="hint">The relayer service runs on demand, not hosted 24/7. Start it first: <code>RELAYER_PRIVATE_KEY=&lt;funded test key&gt; node relayer/relayer-server.js</code> (default port 3001, see docs/relayer.md). Then check its status below.</p>
+    <label>Forwarder address</label>
+    <input id="forwarderAddr" value="0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9" />
+    <button id="checkRelayer">Check relayer status</button>
+    <pre id="relayerOut"></pre>
+    <p class="hint">Gasless actions are signed by you (EIP-712) and submitted by the relayer, which pays the gas. The escrow still records you as the actor. Funding is never relayed — it moves your own money, so Fund stays direct-only.</p>
+  </div>
   <label>Escrow id</label>
   <input id="escrowId" value="0" />
   <button id="readEscrow">Read escrow</button>
@@ -56,12 +74,17 @@
   <label>Deadline (days from now)</label>
   <input id="deadlineDays" value="7" />
   <button id="create">Create escrow</button>
+  <button id="createGasless">Create escrow (gasless)</button>
   <button id="fund">Fund escrow (exact total)</button>
+  <p class="hint">Fund is direct-only by design — a relayer never moves your money.</p>
   <label>Milestone index</label>
   <input id="approveIdx" value="0" />
   <button id="approve">Approve milestone</button>
+  <button id="approveGasless">Approve milestone (gasless)</button>
   <button id="release">Release milestone</button>
+  <button id="releaseGasless">Release milestone (gasless)</button>
   <button id="refund">Refund (after deadline)</button>
+  <button id="refundGasless">Refund (after deadline, gasless)</button>
   <pre id="txOut"></pre>
 </fieldset>
 
@@ -72,7 +95,9 @@
   <label>Proof link (delivered work)</label>
   <input id="proof" placeholder="https://..." />
   <button id="deliver">Submit delivery</button>
+  <button id="deliverGasless">Submit delivery (gasless)</button>
   <button id="claim">Claim delivered (after deadline)</button>
+  <button id="claimGasless">Claim delivered (after deadline, gasless)</button>
   <pre id="freeOut"></pre>
 </fieldset>
 
@@ -95,10 +120,31 @@ const TESTNET = {
 };
 const $ = (id) => document.getElementById(id);
 const log = (el, msg) => { $(el).textContent = msg; };
-let provider, signer, abi;
+let provider, signer, abi, abiFile = './abi.json';
+
+// Relayer (gasless) mode constants. These MUST match relayer/signing.js
+// and relayer/addresses.json exactly: same EIP-712 domain, same
+// ForwardRequest type, same forwarder. The signed message INCLUDES the
+// nonce; the on-chain ForwardRequestData struct does not (OZ v5).
+const V2_ADDR = '0x40854b8c2436504FFB30Ac89298Da24eC434a905';
+const RELAYER_ESCROW_ADDR = '0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d';
+const FORWARDER_ADDR = '0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9';
+const RELAY_GAS = 500000;
+const FORWARDER_TYPES = {
+  ForwardRequest: [
+    { name: 'from', type: 'address' },
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'gas', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint48' },
+    { name: 'data', type: 'bytes' },
+  ],
+};
+const FORWARDER_ABI = ['function nonces(address owner) view returns (uint256)'];
 
 async function loadAbi() {
-  if (!abi) abi = await (await fetch('./abi.json')).json();
+  if (!abi) abi = await (await fetch(abiFile)).json();
   return abi;
 }
 function getContract() {
@@ -158,6 +204,90 @@ $('switch').onclick = async () => {
   await refreshWallet();
 };
 $('readEscrow').onclick = refreshRead;
+$('mode').onchange = () => {
+  const gasless = $('mode').value === 'gasless';
+  $('relayerFields').style.display = gasless ? 'block' : 'none';
+  abiFile = gasless ? './abi-relayer.json' : './abi.json';
+  abi = null;
+  // Switching mode resets the contract address to that mode's default;
+  // the user can still edit it afterwards for a custom deployment.
+  $('contractAddr').value = gasless ? RELAYER_ESCROW_ADDR : V2_ADDR;
+};
+$('checkRelayer').onclick = async () => {
+  try {
+    const url = $('relayerUrl').value.trim().replace(/\/+$/, '');
+    if (!url) throw new Error('Enter the relayer service URL first.');
+    const r = await fetch(url + '/health');
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.error || ('relayer HTTP ' + r.status));
+    const fwdNote = body.forwarder && body.forwarder.toLowerCase() !== $('forwarderAddr').value.trim().toLowerCase()
+      ? '\nWARNING: service forwarder differs from the field above — use the service\'s forwarder.'
+      : '';
+    log('relayerOut', 'Relayer OK\nChain: ' + body.chainId + '\nForwarder: ' + body.forwarder + '\nEscrow: ' + body.escrow + '\nRelayer: ' + body.relayer + '\nRelayer balance: ' + body.relayerBalance + ' tMSTC' + fwdNote);
+  } catch (e) { log('relayerOut', 'Error: ' + (e.reason || e.message)); }
+};
+// Sign `data` as an EIP-712 ForwardRequest with the connected wallet and
+// ask the relayer service to submit it. The user pays no gas; the escrow
+// still records the user as the actor via _msgSender().
+async function relayCall(data, out) {
+  try {
+    await loadAbi();
+    if (!signer) throw new Error('Connect wallet first.');
+    const escrowAddr = $('contractAddr').value.trim();
+    const fwdAddr = $('forwarderAddr').value.trim();
+    const relayerUrl = $('relayerUrl').value.trim().replace(/\/+$/, '');
+    if (!ethers.isAddress(escrowAddr)) throw new Error('Enter a valid contract address first.');
+    if (!ethers.isAddress(fwdAddr)) throw new Error('Enter a valid forwarder address first.');
+    if (!relayerUrl) throw new Error('Enter the relayer service URL first.');
+    const fwd = new ethers.Contract(fwdAddr, FORWARDER_ABI, provider);
+    const from = await signer.getAddress();
+    const nonce = await fwd.nonces(from);
+    const deadline = Math.floor(Date.now() / 1000) + 3600;
+    const net = await provider.getNetwork();
+    const domain = { name: 'SafePayForwarder', version: '1', chainId: net.chainId, verifyingContract: fwdAddr };
+    const message = { from, to: escrowAddr, value: 0, gas: RELAY_GAS, nonce, deadline, data };
+    const signature = await signer.signTypedData(domain, FORWARDER_TYPES, message);
+    // JSON cannot carry BigInt: convert to Numbers before POSTing; the
+    // server converts value/gas/deadline back with BigInt().
+    const request = { from, to: escrowAddr, value: 0, gas: RELAY_GAS, nonce: Number(nonce), deadline, data, signature };
+    log(out, 'Signed. Sending to relayer (you pay no gas)...');
+    const resp = await fetch(relayerUrl + '/relay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request }) });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(body.error || ('relayer HTTP ' + resp.status));
+    let extra = '';
+    try {
+      const receipt = await provider.getTransactionReceipt(body.txHash);
+      const iface = new ethers.Interface(abi);
+      for (const l of (receipt ? receipt.logs : [])) {
+        let parsed = null;
+        try { parsed = iface.parseLog(l); } catch (_) { /* not our event */ }
+        if (parsed && parsed.name === 'EscrowCreated') {
+          $('escrowId').value = parsed.args[0].toString();
+          extra = '\nNew escrow id: ' + parsed.args[0].toString() + ' (filled in above)';
+          break;
+        }
+      }
+    } catch (_) { /* event parsing is best-effort */ }
+    log(out, 'Relayed: ' + body.txHash + '\nhttps://testnet.mstscan.com/tx/' + body.txHash + extra);
+    await refreshWallet();
+    await refreshRead();
+  } catch (e) { log(out, 'Error: ' + (e.reason || e.message)); }
+}
+async function gaslessCall(encode, out) {
+  try {
+    await loadAbi();
+    const iface = new ethers.Interface(abi);
+    await relayCall(iface.encodeFunctionData(...encode), out);
+  } catch (e) { log(out, 'Error: ' + (e.reason || e.message)); }
+}
+$('createGasless').onclick = () => gaslessCall(['createEscrow', [$('freelancer').value.trim(),
+  $('amounts').value.split(',').map((s) => ethers.parseEther(s.trim())),
+  Math.floor(Date.now() / 1000) + Number($('deadlineDays').value) * 86400]], 'txOut');
+$('approveGasless').onclick = () => gaslessCall(['approveMilestone', [BigInt($('escrowId').value), BigInt($('approveIdx').value)]], 'txOut');
+$('releaseGasless').onclick = () => gaslessCall(['releaseMilestone', [BigInt($('escrowId').value), BigInt($('approveIdx').value)]], 'txOut');
+$('refundGasless').onclick = () => gaslessCall(['refund', [BigInt($('escrowId').value)]], 'txOut');
+$('deliverGasless').onclick = () => gaslessCall(['submitDelivery', [BigInt($('escrowId').value), BigInt($('deliverIdx').value), $('proof').value.trim()]], 'freeOut');
+$('claimGasless').onclick = () => gaslessCall(['claimDelivered', [BigInt($('escrowId').value), BigInt($('deliverIdx').value)]], 'freeOut');
 async function send(fn, out) {
   try {
     await loadAbi();

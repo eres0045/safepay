@@ -107,7 +107,7 @@ Events: `EscrowCreated`, `EscrowFunded`, `MilestoneApproved`,
   plus 9 flow txs — all receipts status 0x1, blocks 6634177–6634192,
   verified via the official Testnet RPC. See `docs/project-documentation.md`.
 
-## Relayer (gasless, Phase 1 — LIVE on MST Testnet, 29 Oct 2026)
+## Relayer (gasless — LIVE on MST Testnet, Phase 1 + Phase 2, 29 Oct 2026)
 
 Users sign their escrow action (EIP-712); a relayer service submits it and
 pays the gas, so users never manage gas manually. Built on OpenZeppelin
@@ -124,26 +124,55 @@ and all 11 original tests still pass.
   (deploy tx `0x6f4ce8a2add178c40a18989c1d8466ef2eb8a6c9e4254c6b2906e62db81409c8`),
   relayer-enabled escrow `0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d`
   (deploy tx `0x5de277b989169f3156d06e43a16088581d376ff5e2d9c49bbc443195941a0dde`).
-  The v2 contract (`0x40854b…a905`) is untouched and still live.
-- **Tests:** `npx hardhat test` — **18/18 passing** (11 original + 7 new
+  The v2 contract (`0x40854b…a905`) is untouched and still live, and
+  remains the demo's default.
+- **Tests:** `npx hardhat test` — **24/24 passing** (11 original + 7 new
   relayer e2e: approve, delivery, create, deadline-claim, release, refund,
   and a security test covering forged signatures, replay, and direct
-  spoofing). Testnet e2e (`scripts/relayer-e2e-testnet.js`) and HTTP
-  service smoke test (`scripts/relayer-http-smoke.js`) both pass with
-  real Testnet txs — see `docs/relayer.md` for hashes and balances.
+  spoofing; + 6 frontend-signing drift guards proving the demo page's
+  EIP-712 type, domain, and addresses match the server exactly, and that
+  the frontend's JSON payload shape verifies + executes). Testnet e2e
+  (`scripts/relayer-e2e-testnet.js`) and HTTP service smoke test
+  (`scripts/relayer-http-smoke.js`) both pass with real Testnet txs, and
+  the frontend-shape HTTP test (`scripts/relayer-frontend-shape-test.js`,
+  needs a local `hardhat node`) passes end to end through the real HTTP
+  service — see `docs/relayer.md` for hashes and balances.
+- **Demo app (Phase 2):** `app/index.html` has a Direct / Gasless mode
+  switch. Direct (default) is the untouched v2 flow. Gasless switches to
+  the relayer escrow (`app/abi-relayer.json`, generated from the artifact
+  via `node scripts/sync-relayer-abi.js`) and adds a gasless button next
+  to every relayable action (create, approve, release, deliver, claim,
+  refund — fund stays direct-only). The page signs an EIP-712
+  ForwardRequest with the connected wallet and POSTs it to the relayer
+  URL (default `http://localhost:3001`, editable in the page), then shows
+  the relayed tx hash + explorer link.
 - **Service:** `relayer/relayer-server.js` — `POST /relay` validates
   (escrow-only target, zero value, gas cap, future deadline,
   `forwarder.verify()`), then submits and pays gas. It runs on demand
   (not hosted 24/7); run it with `RELAYER_PRIVATE_KEY` set (fund the key
-  with a small amount of tMSTC only). Funding is never relayed:
-  value-bearing requests are refused, because moving a user's own escrow
-  funds through a third party would defeat the escrow.
-- **HONEST STATUS:** Phase 1 (standalone relayer) is complete and proven
-  on Testnet. Phase 2 (gasless path inside the live demo app) is ON HOLD
-  pending user review — the demo app still shows the direct v2 flow only.
-  The Unstop submission (29 Oct 2026) describes the pre-relayer package;
-  whether it and the Google Form should mention the relayer is a
-  submission-time decision, not something this change makes by itself.
+  with a small amount of tMSTC only). Submissions are serialized through
+  a promise queue and each uses an explicitly queried pending nonce.
+  Funding is never relayed: value-bearing requests are refused, because
+  moving a user's own escrow funds through a third party would defeat the
+  escrow.
+- **Relayer hardening note (found in testing, 29 Oct 2026):** ethers v6
+  providers deduplicate identical low-level requests made within 250ms
+  (`cacheTimeout`). A pending-count query made <250ms after the previous
+  relay returned the STALE count, so a rapid 3rd relay reused a nonce and
+  failed. The server disables that cache (`cacheTimeout: -1`) — every
+  nonce query now hits the network. The demo page needs no equivalent
+  change: human clicks are seconds apart, far outside the 250ms window.
+- **HONEST STATUS:** the relayer stack is complete and proven on Testnet
+  AND through the demo page's exact signing + HTTP payload shape. NOT
+  verified: a live browser-wallet click-through of the gasless buttons
+  (no wallet automation is available here) — the first live click should
+  be a judge's or Ronit's own, with the service running. The Unstop
+  submission (29 Oct 2026) describes the pre-relayer package; updating it
+  via Change Submission and mentioning the relayer in the Google Form is
+  a submission-time decision for the parent + user, not something this
+  change makes by itself. Any such claim must name the relayer escrow
+  address (`0xd75e…c3d6d`) for the gasless path (not the v2 address) and
+  must say the service runs on demand, not 24/7.
 
 ## App (live demo: https://eres0045.github.io/safepay/app/)
 - `app/index.html` — static page (ethers v6 via CDN): connect BridgeKey /
