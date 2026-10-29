@@ -8,10 +8,15 @@ const M1 = ethers.parseEther('0.4');
 
 async function deploy() {
   const [client, freelancer, other] = await ethers.getSigners();
+  // Relayer-enabled deployment: a trusted forwarder first, then the escrow
+  // trusting it. Direct calls still behave exactly as before (v2 path).
+  const Forwarder = await ethers.getContractFactory('SafePayForwarder');
+  const forwarder = await Forwarder.deploy();
+  await forwarder.waitForDeployment();
   const Factory = await ethers.getContractFactory('SafePayEscrow');
-  const escrow = await Factory.deploy();
+  const escrow = await Factory.deploy(await forwarder.getAddress());
   await escrow.waitForDeployment();
-  return { escrow, client, freelancer, other };
+  return { escrow, forwarder, client, freelancer, other };
 }
 
 async function fundedEscrow(escrow, client, freelancer) {

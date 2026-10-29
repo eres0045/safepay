@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 
 /// @title SafePayEscrow — freelance escrow on MST Blockchain
 /// @notice A client locks native MSTC/tMSTC for a freelancer across milestones.
@@ -13,7 +14,18 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 ///         Unreleased, unapproved, undelivered funds return to the client
 ///         after the deadline. Tight MVP scope: native currency only, one
 ///         client + one freelancer per escrow, milestones fixed at creation.
-contract SafePayEscrow is ReentrancyGuard {
+///
+///         RELAYER (gasless) support: this contract trusts one ERC-2771
+///         forwarder (set at deployment, immutable). When a call arrives via
+///         that forwarder, _msgSender() returns the ORIGINAL signer, not the
+///         relayer — so every onlyClient / onlyFreelancer check still sees the
+///         real user. Direct calls are unaffected (_msgSender() == msg.sender
+///         whenever the caller is not the trusted forwarder). Funding is
+///         intentionally NOT relayable with value: the relayer service rejects
+///         value-bearing requests, because moving a user's own escrow funds
+///         through a third party would defeat the escrow's purpose; the gas
+///         for create/approve/deliver/claim/release/refund can be relayed.
+contract SafePayEscrow is ReentrancyGuard, ERC2771Context {
     struct Milestone {
         uint256 amount;
         bool approved;
@@ -80,14 +92,18 @@ contract SafePayEscrow is ReentrancyGuard {
     error TransferFailed();
 
     modifier onlyClient(uint256 escrowId) {
-        if (msg.sender != escrows[escrowId].client) revert NotClient();
+        if (_msgSender() != escrows[escrowId].client) revert NotClient();
         _;
     }
 
     modifier onlyFreelancer(uint256 escrowId) {
-        if (msg.sender != escrows[escrowId].freelancer) revert NotFreelancer();
+        if (_msgSender() != escrows[escrowId].freelancer) revert NotFreelancer();
         _;
     }
+
+    /// @notice The trusted forwarder is fixed at deployment. Direct calls
+    ///         (the original v2 path) keep working unchanged.
+    constructor(address trustedForwarder) ERC2771Context(trustedForwarder) {}
 
     /// @notice Create an escrow. Funding is a separate step (fund()).
     /// @param freelancer The freelancer who will receive released funds.
@@ -100,7 +116,7 @@ contract SafePayEscrow is ReentrancyGuard {
         uint256[] calldata amounts,
         uint256 deadline
     ) external returns (uint256 escrowId) {
-        if (freelancer == address(0) || freelancer == msg.sender) revert InvalidFreelancer();
+        if (freelancer == address(0) || freelancer == _msgSender()) revert InvalidFreelancer();
         if (amounts.length == 0) revert EmptyMilestones();
 
         uint256 total = 0;
@@ -111,7 +127,7 @@ contract SafePayEscrow is ReentrancyGuard {
 
         escrowId = nextEscrowId++;
         Escrow storage e = escrows[escrowId];
-        e.client = msg.sender;
+        e.client = _msgSender();
         e.freelancer = freelancer;
         e.deadline = deadline;
         e.totalAmount = total;
@@ -121,7 +137,7 @@ contract SafePayEscrow is ReentrancyGuard {
             );
         }
 
-        emit EscrowCreated(escrowId, msg.sender, freelancer, total, deadline);
+        emit EscrowCreated(escrowId, _msgSender(), freelancer, total, deadline);
     }
 
     /// @notice Lock the full milestone total into the escrow. Client only, exact amount.
@@ -165,7 +181,7 @@ contract SafePayEscrow is ReentrancyGuard {
         if (m.delivered) revert MilestoneAlreadyDelivered();
         m.delivered = true;
         m.proof = proof;
-        emit MilestoneDelivered(escrowId, milestoneIndex, msg.sender, proof);
+        emit MilestoneDelivered(escrowId, milestoneIndex, _msgSender(), proof);
     }
 
     /// @notice Release an approved milestone's funds to the freelancer. Anyone may call.

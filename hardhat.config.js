@@ -22,7 +22,13 @@ const accounts = key ? [key] : [];
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
-  solidity: '0.8.24',
+  // OZ v5's metatx utils use the MCOPY opcode (EIP-5656), so the EVM
+  // target must be Cancun; Hardhat's default here resolved to Paris.
+  // Testnet execution of a relayed call is the proof this target works.
+  solidity: {
+    version: '0.8.24',
+    settings: { evmVersion: 'cancun' },
+  },
   networks: {
     localhost: { url: 'http://127.0.0.1:8545' },
     mstTestnet: {
