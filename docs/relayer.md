@@ -213,3 +213,26 @@ No private key appears in this repo, in any report, or in any committed
 file. Testnet throwaway wallets live only in `hidden_files/`
 (gitignored, mode 0600). The deployer key lives only in
 `hidden_files/wallet.json` (gitignored, mode 0600).
+
+## Round 2 video update (29 Oct 2026) — gasless segment spliced into the demo video
+
+- Segment recorded with `scripts/record-gasless-video.js` (locally served Phase 2 app,
+  injected test wallet, real relayer service on port 3001, real MST Testnet):
+  switch to Gasless mode -> "Relayer OK" (chain 91562037, forwarder, relayer escrow,
+  relayer balance) -> Approve milestone (gasless) on relayer escrow 2 ->
+  page shows "Relayed: 0xfb844dac66a1644240254a376cd4087d095697301057812b30e660654f15181d"
+  -> Read escrow shows milestone 0 approved: true.
+- On-chain verification of that relayed tx (direct RPC): status 1, from the relayer
+  (0x3310Cfab1ac9dE2A348169E8A517B1C542244C1D), to the forwarder, block 6669810.
+  The signing user's Testnet balance was identical before and after (delta exactly 0)
+  — the user paid no gas.
+- Final video: original 0..144.55s + gasless segment (~23.2s, captioned
+  "NEW - Gasless mode: user signs, relayer submits and pays the gas", narrated with
+  the same Fish Audio voice) + closing card, first 10s (full closing narration kept).
+  Total 178.1s (2:58) at 1280x800, h264+aac — inside the 2-3 min requirement.
+  Verified by thumbnails at intro, base, Relayer OK, relayed tx, approved read-back,
+  and closing card, plus silence detection showing narration in the gasless and
+  closing windows. Splice script: `scripts/splice-relayer-video.sh`.
+- Honest limits, unchanged from Phase 2: the wallet on camera is an injected test
+  wallet, NOT BridgeKey extension UI; the relayer service runs on demand, not 24/7;
+  funding stays direct-only. The pre-relayer video is backed up in the harness dir.
