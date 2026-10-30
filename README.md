@@ -212,3 +212,91 @@ No Mainnet deployment (waiting on organizer tokens). No demo video yet.
 No Unstop submission yet. No invented transaction hashes, addresses, or
 test results. No private key in this README, in any report, or in any
 committed file.
+
+## Demo Day build (30 Oct 2026) — Roque Leon's three upgrades
+
+Built for Demo Day (1 Nov 2026, pending the top-15 announcement on the
+evening of 30 Oct). The Round 2 submissions (Unstop + Google Form) were
+already closed by the 30 Oct 14:00 IST deadline and were NOT touched by
+this work.
+
+### What changed
+
+1. **UI polish** (`app/index.html`): card layout, spacing, typography,
+   hierarchy, status colours, and a mobile breakpoint. The Direct/Gasless
+   mode switch, contract addresses, and ABI wiring are untouched.
+2. **Role dashboards** (app section 6): a Client / Freelancer view switch
+   that reads live on-chain state from MST Testnet (chain 91562037) for
+   the current contract — escrow totals, funded/released/refunded
+   amounts, per-milestone states, and dispute status. No fake data, no
+   hardcoded balances. Client view = escrows the wallet created (create,
+   fund, approve, release, refund); freelancer view = escrows assigned
+   to the wallet (deliver, claim, raise dispute).
+3. **Dispute resolution, on-chain** (`contracts/SafePayEscrow.sol`,
+   app section 5): either party raises a dispute with a reason on a
+   funded, unsettled escrow; while disputed, release, deadline-claim,
+   and refund all revert (`EscrowDisputed`). The designated resolver —
+   set at creation via `createEscrowWithResolver`, defaulting to the
+   client via plain `createEscrow` — settles the WHOLE remaining
+   balance in one direction: to the freelancer (release) or back to the
+   client (refund). Dispute after completion (all milestones released,
+   or nothing left to settle) is rejected, as are disputes from
+   non-parties and resolutions from non-resolvers.
+
+### New Testnet deployment (Testnet ONLY, never mainnet)
+
+- **Dispute contract: `0x3bdb0d50F1e7b85286450E2bec633Cf5a2285968`**
+- Deploy tx: `0x6e78ca4c309a7658435fc7dfa013d8902d10ab693f194ade949398880f034103`
+  (receipt status 0x1, block 6694652; `eth_getCode` non-empty, verified
+  via direct RPC). Deployer `0x79e5882a9cBF197EB14fA7E4cD3c704E2c12cb07`.
+  It trusts the existing forwarder
+  `0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9`.
+- The v2 contract (`0x40854b…a905`) and the relayer escrow
+  (`0xd75e07…c3d6d`) are unchanged and still work; the app's Dispute
+  mode points at the new contract, Direct/Gasless modes at the old ones.
+- **Live disputed-then-resolved flow on Testnet** (escrow 1 on the
+  dispute contract): create
+  `0x0d5d58311e8dcf4011ced392fcaf4171e7794fb99b6d276dd1ecddf8f7819ea1`
+  → fund
+  `0x10163aa5a9f87e3d02467406748c2baa8ee478412128f24579b4b27e57edbe92`
+  → raise dispute
+  `0x71f9b06b5d3a3a53f3ae17bdcfc378eeaa9ec8e46f92efb5fc449f152304c29e`
+  → release correctly reverted with `EscrowDisputed` while disputed →
+  resolve to freelancer
+  `0x6c67d4606bd6bbcadc86e57d0f1fdbffb81757a2b3314b9b7926f6ea31607512`
+  (status 0x1, released 0.02 tMSTC in full).
+
+### Tests
+
+**33/33 Hardhat tests green** (baseline 24 + 9 new in
+`test/Dispute.test.js`): raise by either party, non-party cannot raise,
+empty reason rejected, double dispute rejected, freeze blocks release /
+claim / refund, non-resolver cannot resolve, resolve-to-freelancer
+releases in full, resolve-to-client refunds the remainder,
+client-as-default-resolver path, dispute after completion rejected,
+dispute on an unfunded escrow rejected.
+
+### Honest limits
+
+- **Resolver neutrality:** the default resolver is the client, which is
+  NOT neutral — a client-as-resolver can unilaterally decide a dispute
+  it is party to. For any real dispute, create the escrow with an
+  independent arbitrator via `createEscrowWithResolver`. This limitation
+  is stated in the contract notice, in `getDispute` docs, and in the app.
+- **Gasless dispute coverage:** dispute actions are DIRECT-ONLY in the
+  app (Dispute mode hides the gasless buttons). The relayer service
+  allowlists the relayer escrow only, so a gasless dispute call would be
+  refused server-side; the dispute contract does trust the existing
+  forwarder, so gasless disputes become possible if the service's
+  allowlist is ever extended — that extension was not built or tested.
+- **Demo wallet:** as before, any on-camera demo wallet is an injected
+  test wallet, NOT BridgeKey extension UI. No BridgeKey UI is claimed.
+- **Testnet demo escrow 0** on the dispute contract was left disputed:
+  the first verification run's throwaway resolver wallet was lost when
+  the run's freeze check errored (the check itself was correct — the
+  revert selector was `EscrowDisputed`), so its 0.02 tMSTC stays locked.
+  Escrow 1 is the clean, fully-resolved proof.
+- Resolution settles the whole remaining balance at once; there is no
+  partial split and no appeal step. Approve/deliver are NOT frozen
+  during a dispute (they move no funds); only release, claim, and
+  refund are.

@@ -236,3 +236,12 @@ file. Testnet throwaway wallets live only in `hidden_files/`
 - Honest limits, unchanged from Phase 2: the wallet on camera is an injected test
   wallet, NOT BridgeKey extension UI; the relayer service runs on demand, not 24/7;
   funding stays direct-only. The pre-relayer video is backed up in the harness dir.
+
+## Demo Day note (30 Oct 2026): disputes are direct-only
+
+The dispute contract trusts the existing forwarder, but the relayer
+service allowlists the relayer escrow only — so the app's Dispute mode
+hides the gasless buttons and dispute actions run direct-only. If the
+service's allowlist is extended to the dispute contract, gasless
+disputes should work through the same EIP-712 path, but that was not
+built or tested here; do not claim it until it is.

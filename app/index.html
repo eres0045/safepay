@@ -5,16 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SafePay — Freelance Escrow on MST Blockchain</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-  fieldset { margin: 1rem 0; }
-  label { display: block; margin: 0.5rem 0 0.2rem; font-weight: 600; }
-  input { width: 100%; padding: 0.4rem; box-sizing: border-box; }
-  button { margin: 0.3rem 0.3rem 0.3rem 0; padding: 0.5rem 1rem; cursor: pointer; }
-  pre { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; word-break: break-all; }
-  .hint { color: #444; }
-  .ok { color: #0a7a42; font-weight: 600; }
-  .warn { color: #a33d00; font-weight: 600; }
-  a { color: #0b5fff; }
+  :root { --ink: #16202e; --muted: #55606e; --line: #dbe2ea; --card: #ffffff; --soft: #f2f5f9; --accent: #0b5fff; --good: #0a7a42; --bad: #b42318; --warn: #a33d00; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 820px; margin: 0 auto; padding: 1.5rem 1rem 3rem; line-height: 1.55; color: var(--ink); background: #fbfcfe; }
+  h1 { font-size: 1.7rem; margin: 0.2rem 0 0.4rem; letter-spacing: -0.01em; }
+  h1 + p { font-size: 1.05rem; }
+  fieldset { margin: 1.25rem 0; padding: 1rem 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 1px 3px rgba(22, 32, 46, 0.06); }
+  legend { font-weight: 700; padding: 0 0.4rem; }
+  label { display: block; margin: 0.7rem 0 0.25rem; font-weight: 600; font-size: 0.92rem; }
+  input, select { width: 100%; padding: 0.55rem 0.6rem; border: 1px solid var(--line); border-radius: 8px; font-size: 1rem; background: #fff; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  button { margin: 0.4rem 0.4rem 0.4rem 0; padding: 0.55rem 1.05rem; cursor: pointer; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; }
+  button:hover { filter: brightness(1.08); }
+  pre { background: var(--soft); padding: 1rem; border-radius: 8px; white-space: pre-wrap; word-break: break-all; font-size: 0.88rem; }
+  .hint { color: var(--muted); font-size: 0.92rem; }
+  .ok { color: var(--good); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  a { color: var(--accent); }
+  .badge { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: var(--soft); }
+  .badge.disputed { background: #fdecea; color: var(--bad); }
+  .badge.settled { background: #e6f4ea; color: var(--good); }
+  @media (max-width: 560px) { body { padding: 1rem 0.75rem 2rem; } h1 { font-size: 1.4rem; } }
 </style>
 <script type="importmap">
 { "imports": { "ethers": "https://cdn.jsdelivr.net/npm/ethers@6/+esm" } }
@@ -23,10 +35,11 @@
 <body>
 <h1>SafePay — Freelance Escrow on MST</h1>
 <p>Client locks payment on-chain. Funds release per milestone only after client approval. Unreleased funds refund after the deadline. Real MST Testnet contract — no simulations.</p>
-<p class="hint">Demo flow: 1. Connect BridgeKey &rarr; 2. Switch to MST Testnet &rarr; 3. Create escrow &rarr; 4. Fund it &rarr; 5. Freelancer delivers with proof &rarr; 6. Client approves &rarr; 7. Release it. Or, after the deadline: freelancer claims delivered work, client refunds only undelivered funds. Every step is a real on-chain transaction. Gasless mode (section 2) signs the same actions as meta-transactions and lets a relayer submit them and pay the gas — funding stays direct-only by design.</p>
+<p class="hint">Demo flow: 1. Connect BridgeKey &rarr; 2. Switch to MST Testnet &rarr; 3. Create escrow &rarr; 4. Fund it &rarr; 5. Freelancer delivers with proof &rarr; 6. Client approves &rarr; 7. Release it. Or, after the deadline: freelancer claims delivered work, client refunds only undelivered funds. Every step is a real on-chain transaction. Gasless mode (section 2) signs the same actions as meta-transactions and lets a relayer submit them and pay the gas — funding stays direct-only by design. New for Demo Day: role dashboards (section 6) show each side's live escrows, and the dispute contract (section 5) lets either party freeze an escrow and a designated resolver settle it.</p>
 <p>
   Direct contract: <a href="https://testnet.mstscan.com/address/0x40854b8c2436504FFB30Ac89298Da24eC434a905" target="_blank" rel="noopener">0x40854b8c2436504FFB30Ac89298Da24eC434a905</a>
   &middot; Relayer escrow: <a href="https://testnet.mstscan.com/address/0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d" target="_blank" rel="noopener">0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d</a>
+  &middot; Dispute contract: <a href="https://testnet.mstscan.com/address/0x3bdb0d50F1e7b85286450E2bec633Cf5a2285968" target="_blank" rel="noopener">0x3bdb0d50F1e7b85286450E2bec633Cf5a2285968</a>
   &middot; Forwarder: <a href="https://testnet.mstscan.com/address/0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9" target="_blank" rel="noopener">0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9</a>
   &middot; <a href="https://faucet.mstblockchain.com" target="_blank" rel="noopener">Get free tMSTC from the MST faucet</a>
   &middot; <a href="https://bridgekey.io" target="_blank" rel="noopener">Get BridgeKey wallet</a>
@@ -45,8 +58,9 @@
   <select id="mode">
     <option value="direct" selected>Direct — v2 contract (you pay gas)</option>
     <option value="gasless">Gasless via relayer — relayer escrow (relayer pays gas)</option>
+    <option value="dispute">Dispute — dispute contract (disputes enabled, direct-only)</option>
   </select>
-  <p class="hint">Switching mode resets the contract address below to that mode's default. Direct is the default; the v2 contract is unchanged.</p>
+  <p class="hint">Switching mode resets the contract address below to that mode's default. Direct is the default; the v2 contract is unchanged. Dispute mode hides the gasless buttons: dispute actions are direct-only, because the relayer service only relays to the relayer escrow.</p>
   <label>Contract address (MST Testnet)</label>
   <input id="contractAddr" value="0x40854b8c2436504FFB30Ac89298Da24eC434a905" />
   <div id="relayerFields" style="display:none">
@@ -74,17 +88,17 @@
   <label>Deadline (days from now)</label>
   <input id="deadlineDays" value="7" />
   <button id="create">Create escrow</button>
-  <button id="createGasless">Create escrow (gasless)</button>
+  <button id="createGasless" class="gaslessBtn">Create escrow (gasless)</button>
   <button id="fund">Fund escrow (exact total)</button>
   <p class="hint">Fund is direct-only by design — a relayer never moves your money.</p>
   <label>Milestone index</label>
   <input id="approveIdx" value="0" />
   <button id="approve">Approve milestone</button>
-  <button id="approveGasless">Approve milestone (gasless)</button>
+  <button id="approveGasless" class="gaslessBtn">Approve milestone (gasless)</button>
   <button id="release">Release milestone</button>
-  <button id="releaseGasless">Release milestone (gasless)</button>
+  <button id="releaseGasless" class="gaslessBtn">Release milestone (gasless)</button>
   <button id="refund">Refund (after deadline)</button>
-  <button id="refundGasless">Refund (after deadline, gasless)</button>
+  <button id="refundGasless" class="gaslessBtn">Refund (after deadline, gasless)</button>
   <pre id="txOut"></pre>
 </fieldset>
 
@@ -95,14 +109,41 @@
   <label>Proof link (delivered work)</label>
   <input id="proof" placeholder="https://..." />
   <button id="deliver">Submit delivery</button>
-  <button id="deliverGasless">Submit delivery (gasless)</button>
+  <button id="deliverGasless" class="gaslessBtn">Submit delivery (gasless)</button>
   <button id="claim">Claim delivered (after deadline)</button>
-  <button id="claimGasless">Claim delivered (after deadline, gasless)</button>
+  <button id="claimGasless" class="gaslessBtn">Claim delivered (after deadline, gasless)</button>
   <pre id="freeOut"></pre>
 </fieldset>
 
 <fieldset>
-  <legend>5. My escrows</legend>
+  <legend>5. Disputes (dispute contract only)</legend>
+  <p class="hint">Either party to an escrow can raise a dispute with a reason; while disputed, release, deadline-claim, and refund are all frozen. The designated resolver — set at creation, defaulting to the client — settles the whole remaining balance to the freelancer (release) or back to the client (refund). A client-as-resolver is NOT neutral: for a real dispute, create the escrow with an independent resolver address. All dispute actions below are direct-only (you pay gas); the relayer service only relays to the relayer escrow. Use the Dispute mode in section 2 so the contract address points at the dispute contract.</p>
+  <label>Resolver address (for "Create escrow with resolver"; blank = client as resolver)</label>
+  <input id="resolver" placeholder="0x... (independent arbitrator recommended)" />
+  <label>Dispute reason</label>
+  <input id="disputeReason" placeholder="e.g. Milestone scope contested" />
+  <button id="createWithResolver">Create escrow with resolver</button>
+  <button id="raiseDispute">Raise dispute</button>
+  <button id="resolveFreelancer">Resolve to freelancer (release)</button>
+  <button id="resolveClient">Resolve to client (refund)</button>
+  <button id="readDispute">Read dispute status</button>
+  <pre id="disputeOut"></pre>
+</fieldset>
+
+<fieldset>
+  <legend>6. Dashboards — live on-chain state, by role</legend>
+  <p class="hint">Pick your role and load: every escrow on the current contract where you are that party, read live from MST Testnet — totals, funded/released/refunded amounts, milestone states, and dispute status. No demo data, no hardcoded balances; if a contract predates disputes, its dispute status reads as n/a.</p>
+  <label>Role view</label>
+  <select id="dashRole">
+    <option value="client" selected>Client dashboard — escrows I created</option>
+    <option value="freelancer">Freelancer dashboard — escrows assigned to me</option>
+  </select>
+  <button id="loadDash">Load dashboard</button>
+  <pre id="dashOut"></pre>
+</fieldset>
+
+<fieldset>
+  <legend>7. My escrows</legend>
   <button id="loadMine">Load my escrows</button>
   <pre id="mineOut"></pre>
 </fieldset>
@@ -128,6 +169,7 @@ let provider, signer, abi, abiFile = './abi.json';
 // nonce; the on-chain ForwardRequestData struct does not (OZ v5).
 const V2_ADDR = '0x40854b8c2436504FFB30Ac89298Da24eC434a905';
 const RELAYER_ESCROW_ADDR = '0xd75e0774942E0eC755f4caccD5eEdb3e216c3d6d';
+const DISPUTE_ADDR = '0x3bdb0d50F1e7b85286450E2bec633Cf5a2285968';
 const FORWARDER_ADDR = '0x1Eb5bB559Dee94548e28c12Ae36105405BA209f9';
 const RELAY_GAS = 500000;
 const FORWARDER_TYPES = {
@@ -182,6 +224,10 @@ async function refreshRead() {
       const m = await c.getMilestone(id, i);
       lines.push('  Milestone ' + i + ': ' + ethers.formatEther(m[0]) + ' tMSTC | approved: ' + m[1] + ' | released: ' + m[2] + ' | delivered: ' + m[3] + (m[4] ? ' | proof: ' + m[4] : ''));
     }
+    try {
+      const d = await c.getDispute(id);
+      lines.push('Dispute: resolver ' + d[0] + ' | disputed: ' + d[1] + ' | resolved: ' + d[2] + (d[4] ? ' | reason: ' + d[4] : ''));
+    } catch (_) { lines.push('Dispute: n/a (this contract predates disputes)'); }
     log('readOut', lines.join('\n'));
   } catch (e) { log('readOut', 'Error: ' + e.message); }
 }
@@ -205,13 +251,19 @@ $('switch').onclick = async () => {
 };
 $('readEscrow').onclick = refreshRead;
 $('mode').onchange = () => {
-  const gasless = $('mode').value === 'gasless';
+  const mode = $('mode').value;
+  const gasless = mode === 'gasless';
+  const dispute = mode === 'dispute';
   $('relayerFields').style.display = gasless ? 'block' : 'none';
+  // Dispute actions are direct-only: hide the gasless buttons in Dispute
+  // mode so nobody signs a meta-transaction the relayer service will refuse
+  // (it allowlists the relayer escrow only).
+  document.querySelectorAll('.gaslessBtn').forEach((b) => { b.style.display = dispute ? 'none' : ''; });
   abiFile = gasless ? './abi-relayer.json' : './abi.json';
   abi = null;
   // Switching mode resets the contract address to that mode's default;
   // the user can still edit it afterwards for a custom deployment.
-  $('contractAddr').value = gasless ? RELAYER_ESCROW_ADDR : V2_ADDR;
+  $('contractAddr').value = gasless ? RELAYER_ESCROW_ADDR : dispute ? DISPUTE_ADDR : V2_ADDR;
 };
 $('checkRelayer').onclick = async () => {
   try {
@@ -345,6 +397,71 @@ $('claim').onclick = () => send(async () => {
   const c = getContract();
   return c.claimDelivered(BigInt($('escrowId').value), BigInt($('deliverIdx').value));
 }, 'freeOut');
+// Dispute actions: direct-only by design (see section 5 note). They use
+// the contract address in section 2 — switch to Dispute mode first.
+$('createWithResolver').onclick = () => send(async () => {
+  const c = getContract();
+  const amounts = $('amounts').value.split(',').map((s) => ethers.parseEther(s.trim()));
+  const deadline = Math.floor(Date.now() / 1000) + Number($('deadlineDays').value) * 86400;
+  const resolver = $('resolver').value.trim();
+  if (!resolver) return c.createEscrow($('freelancer').value.trim(), amounts, deadline);
+  return c.createEscrowWithResolver($('freelancer').value.trim(), amounts, deadline, resolver);
+}, 'disputeOut');
+$('raiseDispute').onclick = () => send(async () => {
+  const c = getContract();
+  return c.raiseDispute(BigInt($('escrowId').value), $('disputeReason').value.trim());
+}, 'disputeOut');
+$('resolveFreelancer').onclick = () => send(async () => {
+  const c = getContract();
+  return c.resolveDispute(BigInt($('escrowId').value), true);
+}, 'disputeOut');
+$('resolveClient').onclick = () => send(async () => {
+  const c = getContract();
+  return c.resolveDispute(BigInt($('escrowId').value), false);
+}, 'disputeOut');
+$('readDispute').onclick = async () => {
+  try {
+    await loadAbi();
+    const c = getContract();
+    const d = await c.getDispute(BigInt($('escrowId').value));
+    log('disputeOut', 'Resolver: ' + d[0] + '\nDisputed: ' + d[1] + '\nResolved: ' + d[2] + '\nRaised by: ' + d[3] + '\nReason: ' + (d[4] || '(none)'));
+  } catch (e) { log('disputeOut', 'Error: ' + (e.reason || e.message)); }
+};
+// Role dashboards: live on-chain reads, filtered by the connected wallet's
+// role on the current contract. Client view = escrows I created (create,
+// fund, approve, release, refund); freelancer view = escrows assigned to me
+// (deliver, claim, raise dispute).
+$('loadDash').onclick = async () => {
+  try {
+    await loadAbi();
+    if (!signer) throw new Error('Connect wallet first.');
+    const me = (await signer.getAddress()).toLowerCase();
+    const role = $('dashRole').value;
+    const c = getContract();
+    const total = Number(await c.nextEscrowId());
+    const lines = [role === 'client' ? 'Client dashboard' : 'Freelancer dashboard', 'Wallet: ' + me, 'Escrows on this contract: ' + total];
+    let shown = 0;
+    for (let id = 0; id < total; id++) {
+      const e = await c.getEscrow(id);
+      const mine = role === 'client' ? e[0].toLowerCase() === me : e[1].toLowerCase() === me;
+      if (!mine) continue;
+      shown++;
+      const other = role === 'client' ? e[1] : e[0];
+      lines.push('--- Escrow ' + id + ' (' + (role === 'client' ? 'freelancer ' : 'client ') + other + ') ---');
+      lines.push('  Total: ' + ethers.formatEther(e[3]) + ' | funded: ' + ethers.formatEther(e[4]) + ' | released: ' + ethers.formatEther(e[5]) + ' | refunded: ' + ethers.formatEther(e[6]) + ' | deadline: ' + new Date(Number(e[2]) * 1000).toISOString());
+      for (let i = 0; i < Number(e[8]); i++) {
+        const m = await c.getMilestone(id, i);
+        lines.push('  Milestone ' + i + ': ' + ethers.formatEther(m[0]) + ' tMSTC | approved: ' + m[1] + ' | released: ' + m[2] + ' | delivered: ' + m[3] + (m[4] ? ' | proof: ' + m[4] : ''));
+      }
+      try {
+        const d = await c.getDispute(id);
+        lines.push('  Dispute: ' + (d[1] ? 'DISPUTED — ' + d[4] : d[2] ? 'resolved' : 'none') + ' | resolver: ' + d[0]);
+      } catch (_) { lines.push('  Dispute: n/a (contract predates disputes)'); }
+    }
+    if (!shown) lines.push('No escrows for this role on this contract yet.');
+    log('dashOut', lines.join('\n'));
+  } catch (e) { log('dashOut', 'Error: ' + (e.reason || e.message)); }
+};
 $('loadMine').onclick = async () => {
   try {
     await loadAbi();
